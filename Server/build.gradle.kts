@@ -8,6 +8,7 @@ version = "unspecified"
 
 repositories {
     mavenCentral()
+    maven { url = uri("https://jitpack.io") }
 }
 
 application {
@@ -15,9 +16,8 @@ application {
 }
 
 dependencies {
-    // Kryonet for networking
-    implementation("com.esotericsoftware:kryonet:2.22.0-RC1")
-    // implementation("com.esotericsoftware:kryo:5.4.0") // Removed to avoid version conflict
+    // Same kryonet fork as core module to ensure protocol compatibility
+    implementation("com.github.crykn:kryonet:2.22.9")
 
     // Core module for shared classes
     implementation(project(":core"))

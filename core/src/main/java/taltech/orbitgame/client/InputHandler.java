@@ -14,6 +14,12 @@ public class InputHandler implements InputProcessor {
         return state;
     }
 
+    /** Returns true if any key or mouse button is currently held down. */
+    public boolean hasActiveInput() {
+        return state.w || state.a || state.s || state.d
+            || state.leftClick || state.rightClick || state.mouseClicked;
+    }
+
     public boolean stateGetter(String key) {
         switch (key.toLowerCase()) {
             case "w": return state.w;

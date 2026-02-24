@@ -13,6 +13,7 @@ public class Network {
         kryo.register(Registration.class);
         kryo.register(MoveRequest.class);
         kryo.register(InputState.class);
+        kryo.register(KeyPressEvent.class);
     }
 
     public static class Login {
@@ -20,6 +21,7 @@ public class Network {
     }
 
     public static class Registration {
+        public int id;
         public String name;
     }
 
@@ -46,6 +48,23 @@ public class Network {
                 case "right_click": return rightClick;
                 default: return false;
             }
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when a player presses a key.
+     */
+    public static class KeyPressEvent {
+        public int clientId;
+        public String playerName;
+        public String keys; // e.g. "W, A"
+
+        public KeyPressEvent() {}
+
+        public KeyPressEvent(int clientId, String playerName, String keys) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.keys = keys;
         }
     }
 }

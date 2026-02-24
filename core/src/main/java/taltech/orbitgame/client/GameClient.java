@@ -14,9 +14,6 @@ public class GameClient {
 
     public GameClient() {
         client = new Client();
-        client.start();
-
-        // Register classes
         Network.register(client);
 
         client.addListener(new Listener() {
@@ -32,7 +29,12 @@ public class GameClient {
             public void received(Connection connection, Object object) {
                 if (object instanceof Network.Registration) {
                     Network.Registration reg = (Network.Registration) object;
-                    System.out.println("[Client] Registered as: " + reg.name);
+                    clientId = reg.id;
+                    System.out.println("[Client] Registered as: " + reg.name + " (id=" + clientId + ")");
+                }
+                if (object instanceof Network.KeyPressEvent) {
+                    Network.KeyPressEvent event = (Network.KeyPressEvent) object;
+                    System.out.println("[Client] " + event.playerName + " pressed: " + event.keys);
                 }
             }
 
@@ -44,13 +46,18 @@ public class GameClient {
     }
 
     public void connect() {
+        // client.start() launches the Kryonet update loop in its own thread.
+        // client.connect() must then be called from a DIFFERENT thread — never
+        // from the Kryonet update thread itself.
+        client.start(); // starts the "Client" update-loop thread
+
         new Thread(() -> {
             try {
                 client.connect(5000, "localhost", Network.PORT);
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println("[Client] Connection failed: " + e.getMessage());
             }
-        }).start();
+        }, "Client-Connect").start();
     }
 
     public void sendInput(InputState state) {
@@ -58,4 +65,9 @@ public class GameClient {
             client.sendTCP(state);
         }
     }
+
+    public boolean isConnected() {
+        return client != null && client.isConnected();
+    }
 }
+

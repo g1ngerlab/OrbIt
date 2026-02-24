@@ -38,8 +38,8 @@ public class GameScreen implements Screen {
 
         camera.update();
 
-        // Send input state to server
-        if (gameClient != null) {
+        // Only send input state to server when something is pressed
+        if (gameClient != null && inputHandler.hasActiveInput()) {
             gameClient.sendInput(inputHandler.getState());
         }
     }

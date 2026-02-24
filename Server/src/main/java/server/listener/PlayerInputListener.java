@@ -14,7 +14,7 @@ import java.util.Map;
  * Listens for player input events from connected clients
  * Handles multiple client connections and echoes input to terminal
  */
-public class PlayerInputListener extends Listener {
+public class PlayerInputListener implements Listener {
     private Server server;
     private Map<Integer, String> connectedClients;
 
@@ -34,6 +34,10 @@ public class PlayerInputListener extends Listener {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void stopServer() {
+        server.stop();
     }
 
     @Override
@@ -59,6 +63,7 @@ public class PlayerInputListener extends Listener {
             System.out.println("[Server] Client logged in: " + name);
 
             Network.Registration reg = new Network.Registration();
+            reg.id = connection.getID();
             reg.name = name;
             connection.sendTCP(reg);
             return;
@@ -78,8 +83,13 @@ public class PlayerInputListener extends Listener {
             if (state.stateGetter("left_click")) pressed.add("Left Click");
             if (state.stateGetter("right_click")) pressed.add("Right Click");
             if (!pressed.isEmpty()) {
-                System.out.println(String.format("[Server] %s pressed: %s",
-                    name, String.join(", ", pressed)));
+                String keysStr = String.join(", ", pressed);
+                System.out.println(String.format("[Server] %s pressed: %s", name, keysStr));
+
+                // Broadcast to all clients so every player sees what others press
+                Network.KeyPressEvent event = new Network.KeyPressEvent(
+                    connection.getID(), name, keysStr);
+                server.sendToAllTCP(event);
             }
         }
     }
