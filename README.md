@@ -1,33 +1,46 @@
-# orbit
+# Orb it
+## Description (Mängu kirjeldus)
+"Orb it" is an extraction shooter game where the core objective is to collect orbs and weapons scattered across the map. Players must fight against other players and NPCs to survive and successfully extract with their loot.
+## How to Play (Mängimise juhend)
+### Starting the Game
+1.  Start the Server: Ensure the server is running first.
+2.  Start the Client: Launch the client application.
+3.  Automatic Connection: The client will automatically attempt to connect to the server.
+### Controls
+Currently implemented controls for testing server communication:
+*   W / A / S / D: Move character (Server echoes input)
+*   Mouse: Aim / Click (Server echoes input)
+## Running Locally (Mängu käivitamine lokaalselt)
+This project is a monorepo containing both the Server and Client components. You can run them using Gradle wrapper commands from the project root directory.
+### Prerequisites
+*   Java 21
+### Step-by-Step Guide
+1.  Start the Server:
+    Open a terminal in the project root and run:
 
-A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
+    ./gradlew Server:run
 
-This project was generated with a template including simple application launchers and an `ApplicationAdapter` extension that draws libGDX logo.
+    *(Note: This starts the server module which listens for client connections.)*
+2.  Start the Client:
+    Open a separate terminal window and run:
 
-## Platforms
+    ./gradlew lwjgl3:run
 
-- `core`: Main module with the application logic shared by all platforms.
-- `lwjgl3`: Primary desktop platform using LWJGL3; was called 'desktop' in older docs.
-
-## Gradle
-
-This project uses [Gradle](https://gradle.org/) to manage dependencies.
-The Gradle wrapper was included, so you can run Gradle tasks using `gradlew.bat` or `./gradlew` commands.
-Useful Gradle tasks and flags:
-
-- `--continue`: when using this flag, errors will not stop the tasks from running.
-- `--daemon`: thanks to this flag, Gradle daemon will be used to run chosen tasks.
-- `--offline`: when using this flag, cached dependency archives will be used.
-- `--refresh-dependencies`: this flag forces validation of all dependencies. Useful for snapshot versions.
-- `build`: builds sources and archives of every project.
-- `cleanEclipse`: removes Eclipse project data.
-- `cleanIdea`: removes IntelliJ project data.
-- `clean`: removes `build` folders, which store compiled classes and built archives.
-- `eclipse`: generates Eclipse project data.
-- `idea`: generates IntelliJ project data.
-- `lwjgl3:jar`: builds application's runnable jar, which can be found at `lwjgl3/build/libs`.
-- `lwjgl3:run`: starts the application.
-- `test`: runs unit tests (if any).
-
-Note that most tasks that are not specific to a single project can be run with `name:` prefix, where the `name` should be replaced with the ID of a specific project.
-For example, `core:clean` removes `build` folder only from the `core` project.
+3.  Multiple Clients:
+    To test multiplayer scenarios, open additional terminal windows and run the client command again. Every new client will connect to the same server instance.
+## Technologies Used (Kasutatud tehnoloogiate loetelu)
+*   Language: Java 21
+*   Game Framework: LibGDX 1.14.0
+*   Networking: KryoNet 2.22.9
+*   Build Tool: Gradle
+## Features (Mängu feature'id)
+*   Client-Server Architecture: Distinct server and client applications communicating over TCP/UDP.
+*   Multiplayer Support: The server can handle multiple simultaneous client connections.
+*   Input Echoing: Real-time transmission of player inputs (WASD, Mouse) from the client to the server, where they are logged to the terminal.
+## Authors (Autorite nimed)
+*   Aleksandr Muskevits
+*   Artemij Kuzin
+*   Artur Kuznetsov
+## Connection Info (Info ühenduse kohta)
+*   (To be added) - Information on how the client connects to the TalTech server.
+*   Repository Link: This project is a monorepo containing both Server and Client.
