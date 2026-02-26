@@ -1,5 +1,4 @@
-## Gradle:
-.gradle/
+
 gradle-app.setting
 /build/
 /android/build/
