@@ -1,1 +1,26 @@
-libgdx.png
+Buttons/button.png
+Buttons/buttonPressed.png
+Buttons/orb.png
+MainMenuAssets/orbit.png
+Space Background Laptop.gif
+fonts/PixelifySans-VariableFont_wght.ttf
+guns/crosshair.png
+guns/test_bullet.png
+guns/test_shotgun.png
+maps/TalTechMAP.ldtk
+npc/npc1/npc1-Sheet.png
+npc/npc1/npc1-idle-Sheet.png
+npc/npc1/npc1.aseprite
+npc/npc1/npc1.gif
+npc/npc1/npc1run.gif
+player/BadBoy.png
+tiles/Buildings_Colour2.png
+tiles/TX Plant with Shadow.png
+tiles/TX Plant.png
+tiles/TX Props.png
+tiles/TX Shadow Plant.png
+tiles/TX Shadow.png
+tiles/TX Struct.png
+tiles/TX Tileset Grass.png
+tiles/TX Tileset Stone Ground.png
+tiles/TX Tileset Wall.png

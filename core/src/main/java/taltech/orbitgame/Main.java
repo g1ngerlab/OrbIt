@@ -1,8 +1,7 @@
 package taltech.orbitgame;
 
 import com.badlogic.gdx.Game;
-import taltech.orbitgame.client.GameClient;
-import taltech.orbitgame.screen.GameScreen;
+import taltech.orbitgame.screen.MainMenuScreen;
 
 /**
  * Extending the Game class in here is very important for multiple screen
@@ -12,11 +11,7 @@ public class Main extends Game {
 
     @Override
     public void create() {
-        // Initialize network client
-        GameClient gameClient = new GameClient();
-        gameClient.connect();
-
-        // Display the game screen and pass network client
-        setScreen(new GameScreen(gameClient));
+        // Start with the main menu screen
+        setScreen(new MainMenuScreen(this));
     }
 }
