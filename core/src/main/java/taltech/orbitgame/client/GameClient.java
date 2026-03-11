@@ -11,15 +11,33 @@ import java.io.IOException;
 public class GameClient {
     private Client client;
     private int clientId = -1;
+    private int lobbyId = 1; // Default lobby
+    private GameClientListener gameListener;
 
-    public GameClient() {
+    public interface GameClientListener {
+        void onPlayerJoined(int clientId, String playerName, float x, float y);
+        void onPlayerLeft(int clientId);
+        void onPlayerPositionUpdate(int clientId, float x, float y, boolean moving, float aimX, float aimY);
+        void onLobbyState(Network.LobbyState lobbyState);
+        void onLobbyJoinConfirmed(float spawnX, float spawnY);
+        void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate);
+        void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
+        /** Called when a player's health changes (used to sync health bars). */
+        void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
+        /** Called when a player or NPC dies and must be removed from the world. */
+        void onEntityDied(Network.EntityDied entityDied);
+    }
+
+    public GameClient(int lobbyId) {
+        this.lobbyId = lobbyId;
         client = new Client();
         Network.register(client);
+        System.out.println("[Client] GameClient created for lobby " + lobbyId);
 
         client.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
-                System.out.println("[Client] Connected to server.");
+                System.out.println("[Client] Connected to server. Sending login...");
                 Network.Login login = new Network.Login();
                 login.name = "Player";
                 client.sendTCP(login);
@@ -31,10 +49,73 @@ public class GameClient {
                     Network.Registration reg = (Network.Registration) object;
                     clientId = reg.id;
                     System.out.println("[Client] Registered as: " + reg.name + " (id=" + clientId + ")");
+
+                    // Join the lobby after registration
+                    System.out.println("[Client] Requesting to join lobby " + lobbyId);
+                    Network.JoinLobby joinLobby = new Network.JoinLobby(lobbyId);
+                    client.sendTCP(joinLobby);
                 }
                 if (object instanceof Network.KeyPressEvent) {
                     Network.KeyPressEvent event = (Network.KeyPressEvent) object;
                     System.out.println("[Client] " + event.playerName + " pressed: " + event.keys);
+                }
+                if (object instanceof Network.LobbyState) {
+                    Network.LobbyState lobbyState = (Network.LobbyState) object;
+                    System.out.println("[Client] Received lobby state with " + lobbyState.players.size() + " players");
+                    if (gameListener != null) {
+                        gameListener.onLobbyState(lobbyState);
+                    }
+                }
+                if (object instanceof Network.PlayerJoined) {
+                    Network.PlayerJoined joined = (Network.PlayerJoined) object;
+                    System.out.println("[Client] Player joined: " + joined.playerName + " (id=" + joined.clientId + ")");
+                    if (gameListener != null && joined.clientId != clientId) {
+                        gameListener.onPlayerJoined(joined.clientId, joined.playerName, joined.x, joined.y);
+                    }
+                }
+                if (object instanceof Network.PlayerLeft) {
+                    Network.PlayerLeft left = (Network.PlayerLeft) object;
+                    System.out.println("[Client] Player left: id=" + left.clientId);
+                    if (gameListener != null) {
+                        gameListener.onPlayerLeft(left.clientId);
+                    }
+                }
+                if (object instanceof Network.PlayerPositionUpdate) {
+                    Network.PlayerPositionUpdate update = (Network.PlayerPositionUpdate) object;
+                    if (gameListener != null && update.clientId != clientId) {
+                        gameListener.onPlayerPositionUpdate(update.clientId, update.x, update.y, update.moving, update.aimX, update.aimY);
+                    }
+                }
+                if (object instanceof Network.LobbyJoinConfirmed) {
+                    Network.LobbyJoinConfirmed confirmed = (Network.LobbyJoinConfirmed) object;
+                    System.out.println("[Client] Lobby join confirmed at spawn (" + confirmed.spawnX + ", " + confirmed.spawnY + ")");
+                    if (gameListener != null) {
+                        gameListener.onLobbyJoinConfirmed(confirmed.spawnX, confirmed.spawnY);
+                    }
+                }
+                if (object instanceof Network.NpcStateUpdate) {
+                    Network.NpcStateUpdate update = (Network.NpcStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.BulletStateUpdate) {
+                    Network.BulletStateUpdate update = (Network.BulletStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onBulletStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.PlayerHealthUpdate) {
+                    Network.PlayerHealthUpdate update = (Network.PlayerHealthUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerHealthUpdate(update);
+                    }
+                }
+                if (object instanceof Network.EntityDied) {
+                    Network.EntityDied died = (Network.EntityDied) object;
+                    if (gameListener != null) {
+                        gameListener.onEntityDied(died);
+                    }
                 }
             }
 
@@ -45,11 +126,12 @@ public class GameClient {
         });
     }
 
+    public void setGameListener(GameClientListener listener) {
+        this.gameListener = listener;
+    }
+
     public void connect() {
-        // client.start() launches the Kryonet update loop in its own thread.
-        // client.connect() must then be called from a DIFFERENT thread — never
-        // from the Kryonet update thread itself.
-        client.start(); // starts the "Client" update-loop thread
+        client.start();
 
         new Thread(() -> {
             try {
@@ -66,8 +148,30 @@ public class GameClient {
         }
     }
 
+    public void sendPosition(float x, float y, boolean moving, float aimX, float aimY) {
+        if (client.isConnected() && clientId != -1) {
+            Network.PlayerPositionUpdate update = new Network.PlayerPositionUpdate(clientId, x, y, moving, aimX, aimY);
+            client.sendTCP(update);
+        }
+    }
+
+    public void sendShoot(float targetX, float targetY) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.ShootRequest(targetX, targetY));
+        }
+    }
+
     public boolean isConnected() {
         return client != null && client.isConnected();
     }
-}
 
+    public int getClientId() {
+        return clientId;
+    }
+
+    public void disconnect() {
+        if (client != null) {
+            client.close();
+        }
+    }
+}

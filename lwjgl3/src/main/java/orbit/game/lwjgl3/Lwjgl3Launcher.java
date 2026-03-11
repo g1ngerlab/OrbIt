@@ -7,7 +7,7 @@ import taltech.orbitgame.Main;
 /** Launches the desktop (LWJGL3) application. */
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
-        if (StartupHelper.startNewJvmIfRequired()) return; // This handles macOS support and helps on Windows.
+        if (StartupHelper.startNewJvmIfRequired()) return;
         createApplication();
     }
 
@@ -31,7 +31,8 @@ public class Lwjgl3Launcher {
         configuration.setWindowedMode(640, 480);
         //// You can change these files; they are in lwjgl3/src/main/resources/ .
         //// They can also be loaded from the root of assets/ .
-        configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");
+        // Commented out because icon files don't exist yet
+        // configuration.setWindowIcon("libgdx128.png", "libgdx64.png", "libgdx32.png", "libgdx16.png");
 
         //// This could improve compatibility with Windows machines with buggy OpenGL drivers, Macs
         //// with Apple Silicon that have to emulate compatibility with OpenGL anyway, and more.
