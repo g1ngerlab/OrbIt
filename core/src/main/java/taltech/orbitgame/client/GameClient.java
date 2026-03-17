@@ -22,6 +22,7 @@ public class GameClient {
         void onLobbyJoinConfirmed(float spawnX, float spawnY);
         void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate);
         void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
+        void onCorpseStateUpdate(Network.CorpseStateUpdate corpseStateUpdate);
         /** Called when a player's health changes (used to sync health bars). */
         void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
         /** Called when a player or NPC dies and must be removed from the world. */
@@ -54,10 +55,6 @@ public class GameClient {
                     System.out.println("[Client] Requesting to join lobby " + lobbyId);
                     Network.JoinLobby joinLobby = new Network.JoinLobby(lobbyId);
                     client.sendTCP(joinLobby);
-                }
-                if (object instanceof Network.KeyPressEvent) {
-                    Network.KeyPressEvent event = (Network.KeyPressEvent) object;
-                    System.out.println("[Client] " + event.playerName + " pressed: " + event.keys);
                 }
                 if (object instanceof Network.LobbyState) {
                     Network.LobbyState lobbyState = (Network.LobbyState) object;
@@ -103,6 +100,12 @@ public class GameClient {
                     Network.BulletStateUpdate update = (Network.BulletStateUpdate) object;
                     if (gameListener != null) {
                         gameListener.onBulletStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.CorpseStateUpdate) {
+                    Network.CorpseStateUpdate update = (Network.CorpseStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onCorpseStateUpdate(update);
                     }
                 }
                 if (object instanceof Network.PlayerHealthUpdate) {
@@ -170,8 +173,23 @@ public class GameClient {
     }
 
     public void disconnect() {
-        if (client != null) {
-            client.close();
+        if (client != null && client.isConnected()) {
+            System.out.println("[GameClient] Disconnecting...");
+            try {
+                // Stop the client in a separate thread to avoid blocking
+                new Thread(() -> {
+                    try {
+                        client.stop();
+                    } catch (Exception e) {
+                        System.err.println("[GameClient] Error stopping client: " + e.getMessage());
+                    }
+                }, "ClientDisconnectThread").start();
+
+                // Close immediately without waiting
+                client.close();
+            } catch (Exception e) {
+                System.err.println("[GameClient] Error disconnecting: " + e.getMessage());
+            }
         }
     }
 }

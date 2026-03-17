@@ -30,6 +30,7 @@ public class Lobby {
 
     private static final float PLAYER_WIDTH = 32f;
     private static final float PLAYER_HEIGHT = 48f;
+    private static final float PLAYER_CORPSE_SCALE = 1f;
 
     private static final float BULLET_SPEED = 480f;
     private static final float BULLET_RADIUS = 4f;
@@ -70,15 +71,20 @@ public class Lobby {
     }
 
     private final int lobbyId;
+    private final String lobbyName;
     private final Map<Integer, PlayerData> players;
     private final NpcManager npcManager;
     private final MapCollisionGrid collisionGrid;
     private final Random random;
     private final Queue<PendingShot> pendingShots;
     private final Map<Integer, ServerBullet> bullets;
+    private final Map<Integer, Network.CorpseState> corpses;
 
     private int nextBulletId;
+    private int nextCorpseId;
     private long npcTick;
+    /** Timestamp (System.currentTimeMillis) when lobby became empty, or 0 if not empty */
+    private long emptyTimestamp = 0;
 
     public static class PlayerData {
         public int clientId;
@@ -116,15 +122,18 @@ public class Lobby {
         }
     }
 
-    public Lobby(int lobbyId) {
+    public Lobby(int lobbyId, String lobbyName) {
         this.lobbyId = lobbyId;
+        this.lobbyName = lobbyName;
         this.players = new ConcurrentHashMap<>();
         this.npcManager = new NpcManager();
         this.collisionGrid = new MapCollisionGrid(resolveMapPath());
         this.random = new Random();
         this.pendingShots = new ConcurrentLinkedQueue<>();
         this.bullets = new HashMap<>();
+        this.corpses = new ConcurrentHashMap<>();
         this.nextBulletId = 1;
+        this.nextCorpseId = 1;
         spawnInitialRobots();
         this.npcTick = 0;
     }
@@ -132,6 +141,7 @@ public class Lobby {
     public void addPlayer(int clientId, String playerName, Connection connection) {
         PlayerData player = new PlayerData(clientId, playerName, connection);
         players.put(clientId, player);
+        emptyTimestamp = 0; // Lobby is no longer empty
 
         System.out.println("[Lobby " + lobbyId + "] Player " + playerName + " joined. Total players: " + players.size());
 
@@ -155,12 +165,18 @@ public class Lobby {
         // New client needs current NPC and bullet world state immediately after joining.
         connection.sendTCP(createNpcStateUpdate());
         connection.sendTCP(createBulletStateUpdate());
+        connection.sendTCP(createCorpseStateUpdate());
     }
 
     public void removePlayer(int clientId) {
         PlayerData player = players.remove(clientId);
         if (player != null) {
             System.out.println("[Lobby " + lobbyId + "] Player " + player.playerName + " left. Total players: " + players.size());
+
+            // Track when lobby became empty
+            if (players.isEmpty() && emptyTimestamp == 0) {
+                emptyTimestamp = System.currentTimeMillis();
+            }
 
             // Notify all remaining players
             Network.PlayerLeft left = new Network.PlayerLeft(clientId);
@@ -210,6 +226,22 @@ public class Lobby {
 
     public int getPlayerCount() {
         return players.size();
+    }
+
+    public int getLobbyId() {
+        return lobbyId;
+    }
+
+    public String getLobbyName() {
+        return lobbyName;
+    }
+
+    /**
+     * Returns true if the lobby is empty and has been empty for longer than the given duration.
+     */
+    public boolean isEmptyForLongerThan(long durationMs) {
+        return players.isEmpty() && emptyTimestamp > 0
+                && (System.currentTimeMillis() - emptyTimestamp) > durationMs;
     }
 
     private void spawnInitialRobots() {
@@ -330,6 +362,7 @@ public class Lobby {
 
                 if (player.isDead()) {
                     System.out.println("[Lobby " + lobbyId + "] Player " + player.playerName + " killed by NPC melee!");
+                    addPlayerCorpse(player);
                     broadcastToAll(new Network.EntityDied(
                         Network.EntityDied.TYPE_PLAYER, player.clientId));
                     players.remove(player.clientId);
@@ -373,6 +406,7 @@ public class Lobby {
 
                 if (player.isDead()) {
                     System.out.println("[Lobby " + lobbyId + "] Player " + player.playerName + " died!");
+                    addPlayerCorpse(player);
                     broadcastToAll(new Network.EntityDied(
                         Network.EntityDied.TYPE_PLAYER, player.clientId));
                     // Remove player from the lobby
@@ -406,6 +440,7 @@ public class Lobby {
 
                 if (npc.isDead()) {
                     System.out.println("[Lobby " + lobbyId + "] NPC #" + npc.getId() + " killed!");
+                    addRobotButlerCorpse(npc);
                     broadcastToAll(new Network.EntityDied(
                         Network.EntityDied.TYPE_NPC, npc.getId()));
                     // NPC will be excluded from next snapshot automatically (isAlive() == false)
@@ -474,6 +509,40 @@ public class Lobby {
         }
 
         return update;
+    }
+
+    private Network.CorpseStateUpdate createCorpseStateUpdate() {
+        Network.CorpseStateUpdate update = new Network.CorpseStateUpdate();
+        update.lobbyId = lobbyId;
+        update.tick = npcTick;
+        update.corpses.addAll(corpses.values());
+        return update;
+    }
+
+    private void addPlayerCorpse(PlayerData player) {
+        Network.CorpseState corpse = new Network.CorpseState();
+        corpse.corpseId = nextCorpseId++;
+        corpse.kind = Network.CorpseState.KIND_PLAYER;
+        corpse.x = player.x + PLAYER_WIDTH * 0.5f;
+        corpse.y = player.y + PLAYER_HEIGHT * 0.5f;
+        corpse.width = PLAYER_WIDTH * PLAYER_CORPSE_SCALE;
+        corpse.height = PLAYER_HEIGHT * PLAYER_CORPSE_SCALE;
+        corpse.rotationDeg = 90f;
+        corpses.put(corpse.corpseId, corpse);
+        broadcastToAll(createCorpseStateUpdate());
+    }
+
+    private void addRobotButlerCorpse(Npc npc) {
+        Network.CorpseState corpse = new Network.CorpseState();
+        corpse.corpseId = nextCorpseId++;
+        corpse.kind = Network.CorpseState.KIND_ROBOT_BUTLER;
+        corpse.x = npc.getPosition().x;
+        corpse.y = npc.getPosition().y;
+        corpse.width = npc.getSize();
+        corpse.height = npc.getSize();
+        corpse.rotationDeg = 90f;
+        corpses.put(corpse.corpseId, corpse);
+        broadcastToAll(createCorpseStateUpdate());
     }
 
     private void broadcastToAll(Object message) {

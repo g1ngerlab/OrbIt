@@ -30,8 +30,15 @@ public class Network {
         kryo.register(ShootRequest.class);
         kryo.register(BulletState.class);
         kryo.register(BulletStateUpdate.class);
+        kryo.register(CorpseState.class);
+        kryo.register(CorpseStateUpdate.class);
         kryo.register(PlayerHealthUpdate.class);
         kryo.register(EntityDied.class);
+        kryo.register(CreateLobby.class);
+        kryo.register(LobbyCreated.class);
+        kryo.register(RequestAllLobbies.class);
+        kryo.register(AllLobbiesInfo.class);
+        kryo.register(LobbyListItem.class);
     }
 
     public static class Login {
@@ -54,6 +61,7 @@ public class Network {
         public boolean leftClick, rightClick;
         public int mouseX, mouseY;
         public int clientId;
+        public boolean esc;
 
         public boolean stateGetter(String key) {
             switch (key.toLowerCase()) {
@@ -284,6 +292,32 @@ public class Network {
         }
     }
 
+    public static class CorpseState {
+        public static final int KIND_PLAYER = 0;
+        public static final int KIND_ROBOT_BUTLER = 1;
+
+        public int corpseId;
+        public int kind;
+        /** Center position in world coordinates. */
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+        public float rotationDeg;
+
+        public CorpseState() {}
+    }
+
+    public static class CorpseStateUpdate {
+        public int lobbyId;
+        public long tick;
+        public java.util.ArrayList<CorpseState> corpses;
+
+        public CorpseStateUpdate() {
+            corpses = new java.util.ArrayList<>();
+        }
+    }
+
     /**
      * Sent by server to all clients when a player takes damage or is healed.
      * Used to sync health bars in multiplayer.
@@ -321,6 +355,69 @@ public class Network {
         public EntityDied(int entityType, int entityId) {
             this.entityType = entityType;
             this.entityId = entityId;
+        }
+    }
+
+    /**
+     * Sent by client to create a new lobby
+     */
+    public static class CreateLobby {
+        public String lobbyName;
+
+        public CreateLobby() {}
+
+        public CreateLobby(String lobbyName) {
+            this.lobbyName = lobbyName;
+        }
+    }
+
+    /**
+     * Sent by server to confirm lobby creation and provide lobby ID
+     */
+    public static class LobbyCreated {
+        public int lobbyId;
+        public String lobbyName;
+
+        public LobbyCreated() {}
+
+        public LobbyCreated(int lobbyId, String lobbyName) {
+            this.lobbyId = lobbyId;
+            this.lobbyName = lobbyName;
+        }
+    }
+
+    /**
+     * Sent by client to request list of all available lobbies
+     */
+    public static class RequestAllLobbies {
+        public RequestAllLobbies() {}
+    }
+
+    /**
+     * Information about a single lobby
+     */
+    public static class LobbyListItem {
+        public int lobbyId;
+        public String lobbyName;
+        public int playerCount;
+
+        public LobbyListItem() {}
+
+        public LobbyListItem(int lobbyId, String lobbyName, int playerCount) {
+            this.lobbyId = lobbyId;
+            this.lobbyName = lobbyName;
+            this.playerCount = playerCount;
+        }
+    }
+
+    /**
+     * Sent by server with list of all available lobbies
+     */
+    public static class AllLobbiesInfo {
+        public java.util.ArrayList<LobbyListItem> lobbies;
+
+        public AllLobbiesInfo() {
+            lobbies = new java.util.ArrayList<>();
         }
     }
 }

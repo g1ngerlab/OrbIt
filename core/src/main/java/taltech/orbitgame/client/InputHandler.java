@@ -17,7 +17,7 @@ public class InputHandler implements InputProcessor {
     /** Returns true if any key or mouse button is currently held down. */
     public boolean hasActiveInput() {
         return state.w || state.a || state.s || state.d
-            || state.leftClick || state.rightClick || state.mouseClicked;
+            || state.leftClick || state.rightClick || state.mouseClicked || state.esc;
     }
 
     public boolean stateGetter(String key) {
@@ -28,6 +28,7 @@ public class InputHandler implements InputProcessor {
             case "d": return state.d;
             case "mouseclicked": return state.mouseClicked;
             default: return false;
+            case "esc": return state.esc;
         }
     }
 
@@ -38,6 +39,7 @@ public class InputHandler implements InputProcessor {
             case Input.Keys.A: state.a = true; break;
             case Input.Keys.S: state.s = true; break;
             case Input.Keys.D: state.d = true; break;
+            case Input.Keys.ESCAPE: state.esc = true; break;
         }
         return true;
     }
@@ -49,6 +51,7 @@ public class InputHandler implements InputProcessor {
             case Input.Keys.A: state.a = false; break;
             case Input.Keys.S: state.s = false; break;
             case Input.Keys.D: state.d = false; break;
+            case Input.Keys.ESCAPE: state.esc = false; break;
         }
         return true;
     }
