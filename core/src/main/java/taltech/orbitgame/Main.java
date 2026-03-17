@@ -1,7 +1,7 @@
 package taltech.orbitgame;
 
 import com.badlogic.gdx.Game;
-import taltech.orbitgame.screen.MainMenuScreen;
+import taltech.orbitgame.screen.ConnectionScreen;
 
 /**
  * Extending the Game class in here is very important for multiple screen
@@ -11,7 +11,7 @@ public class Main extends Game {
 
     @Override
     public void create() {
-        // Start with the main menu screen
-        setScreen(new MainMenuScreen(this));
+        // Start with connection screen to connect to server
+        setScreen(new ConnectionScreen(this));
     }
 }

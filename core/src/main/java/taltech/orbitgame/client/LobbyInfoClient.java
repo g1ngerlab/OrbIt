@@ -6,20 +6,33 @@ import com.esotericsoftware.kryonet.Listener;
 import taltech.orbitgame.network.Network;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Lightweight client for querying lobby information without joining
  */
 public class LobbyInfoClient {
-    private Client client;
+    private final Client client;
     private Map<Integer, Integer> lobbyPlayerCounts;
-    private boolean connected = false;
+    private volatile boolean connected = false;
     private LobbyInfoListener listener;
+    private LobbyCreatedListener lobbyCreatedListener;
+    private AllLobbiesListener allLobbiesListener;
 
     public interface LobbyInfoListener {
         void onLobbyInfoReceived(Map<Integer, Integer> lobbyPlayerCounts);
+    }
+
+    public interface LobbyCreatedListener {
+        void onLobbyCreated(int lobbyId, String lobbyName);
+        void onLobbyCreateFailed(String reason);
+    }
+
+    public interface AllLobbiesListener {
+        void onAllLobbiesReceived(List<Network.LobbyListItem> lobbies);
     }
 
     public LobbyInfoClient() {
@@ -32,7 +45,6 @@ public class LobbyInfoClient {
             public void connected(Connection connection) {
                 connected = true;
                 System.out.println("[LobbyInfoClient] Connected to server");
-                // Request lobby info immediately
                 requestLobbyInfo();
             }
 
@@ -41,13 +53,25 @@ public class LobbyInfoClient {
                 if (object instanceof Network.LobbyInfo) {
                     Network.LobbyInfo info = (Network.LobbyInfo) object;
                     if (info.lobbyPlayerCounts != null) {
-                        lobbyPlayerCounts = new HashMap<>(info.lobbyPlayerCounts); // Create a copy
+                        lobbyPlayerCounts = new HashMap<>(info.lobbyPlayerCounts);
                         System.out.println("[LobbyInfoClient] Received lobby info: " + lobbyPlayerCounts);
                         if (listener != null) {
-                            listener.onLobbyInfoReceived(new HashMap<>(lobbyPlayerCounts)); // Pass a copy
+                            listener.onLobbyInfoReceived(new HashMap<>(lobbyPlayerCounts));
                         }
-                    } else {
-                        System.out.println("[LobbyInfoClient] WARNING: Received LobbyInfo with null lobbyPlayerCounts");
+                    }
+                }
+                if (object instanceof Network.LobbyCreated) {
+                    Network.LobbyCreated created = (Network.LobbyCreated) object;
+                    System.out.println("[LobbyInfoClient] Lobby created: " + created.lobbyId + " - " + created.lobbyName);
+                    if (lobbyCreatedListener != null) {
+                        lobbyCreatedListener.onLobbyCreated(created.lobbyId, created.lobbyName);
+                    }
+                }
+                if (object instanceof Network.AllLobbiesInfo) {
+                    Network.AllLobbiesInfo info = (Network.AllLobbiesInfo) object;
+                    System.out.println("[LobbyInfoClient] Received all lobbies: " + info.lobbies.size());
+                    if (allLobbiesListener != null) {
+                        allLobbiesListener.onAllLobbiesReceived(new ArrayList<>(info.lobbies));
                     }
                 }
             }
@@ -58,10 +82,21 @@ public class LobbyInfoClient {
                 System.out.println("[LobbyInfoClient] Disconnected from server");
             }
         });
+
+        // Auto-connect on construction
+        connect();
     }
 
     public void setListener(LobbyInfoListener listener) {
         this.listener = listener;
+    }
+
+    public void setLobbyCreatedListener(LobbyCreatedListener listener) {
+        this.lobbyCreatedListener = listener;
+    }
+
+    public void setAllLobbiesListener(AllLobbiesListener listener) {
+        this.allLobbiesListener = listener;
     }
 
     public void connect() {
@@ -79,18 +114,32 @@ public class LobbyInfoClient {
 
     public void requestLobbyInfo() {
         if (client.isConnected()) {
-            Network.RequestLobbyInfo request = new Network.RequestLobbyInfo();
-            client.sendTCP(request);
-            System.out.println("[LobbyInfoClient] Requested lobby info");
+            client.sendTCP(new Network.RequestLobbyInfo());
         }
     }
 
-    public Map<Integer, Integer> getLobbyPlayerCounts() {
-        return new HashMap<>(lobbyPlayerCounts);
+    public void requestAllLobbies() {
+        if (client.isConnected()) {
+            client.sendTCP(new Network.RequestAllLobbies());
+            System.out.println("[LobbyInfoClient] Requested all lobbies");
+        } else {
+            System.err.println("[LobbyInfoClient] Cannot request lobbies - not connected");
+            if (allLobbiesListener != null) {
+                allLobbiesListener.onAllLobbiesReceived(new ArrayList<>());
+            }
+        }
     }
 
-    public int getPlayerCount(int lobbyId) {
-        return lobbyPlayerCounts.getOrDefault(lobbyId, 0);
+    public void createLobby(String lobbyName) {
+        if (client.isConnected()) {
+            client.sendTCP(new Network.CreateLobby(lobbyName));
+            System.out.println("[LobbyInfoClient] Sent create lobby request: " + lobbyName);
+        } else {
+            System.err.println("[LobbyInfoClient] Cannot create lobby - not connected");
+            if (lobbyCreatedListener != null) {
+                lobbyCreatedListener.onLobbyCreateFailed("Not connected to server");
+            }
+        }
     }
 
     public boolean isConnected() {

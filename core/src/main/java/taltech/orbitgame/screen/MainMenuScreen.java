@@ -9,7 +9,6 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -18,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.util.FontManager;
 
 /**
@@ -31,9 +31,15 @@ public class MainMenuScreen implements Screen {
     private Texture buttonTexture;
     private Texture buttonPressedTexture;
     private BitmapFont pixelFont;
+    private LobbyInfoClient lobbyInfoClient; // Shared connection from ConnectionScreen
 
     public MainMenuScreen(Main game) {
+        this(game, null);
+    }
+
+    public MainMenuScreen(Main game, LobbyInfoClient lobbyInfoClient) {
         this.game = game;
+        this.lobbyInfoClient = lobbyInfoClient;
     }
 
     @Override
@@ -72,7 +78,7 @@ public class MainMenuScreen implements Screen {
         playButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new PlayMenuScreen(game));
+                game.setScreen(new LobbyChoiceScreen(game, lobbyInfoClient));
             }
         });
         table.add(playButton).padBottom(20).size(playButton.getWidth(), playButton.getHeight()).row();

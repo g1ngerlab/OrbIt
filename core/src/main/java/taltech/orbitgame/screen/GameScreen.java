@@ -1,24 +1,17 @@
 package taltech.orbitgame.screen;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import taltech.orbitgame.Main; // Add import
+
 import com.badlogic.gdx.graphics.GL20;
-import com.badlogic.gdx.graphics.OrthographicCamera;
-import com.badlogic.gdx.graphics.g2d.BitmapFont;
-import com.badlogic.gdx.graphics.g2d.SpriteBatch;
-import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
-import taltech.orbitgame.camera.CameraController;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.network.Network;
-import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
-import taltech.orbitgame.rendering.BulletRenderer;
-import taltech.orbitgame.rendering.CursorManager;
-import taltech.orbitgame.rendering.WeaponRenderer;
-import taltech.orbitgame.ui.HealthBarRenderer;
-import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
@@ -33,169 +26,97 @@ import java.util.Set;
  */
 public class GameScreen implements Screen, GameClient.GameClientListener {
 
+    private final Main game;
     private final InputHandler inputHandler;
     private final GameClient gameClient;
-    private final SpriteBatch batch;
-    private final ShapeRenderer shapeRenderer;
-    private final HealthBarRenderer healthBarRenderer;
     private final MapManager map;
     private final Player player;
     private final NpcManager npcManager;
+    private final Map<Integer, Network.CorpseState> corpses;
 
     // Refactored components
     private final PlayerController playerController;
-    private final CameraController cameraController;
-    private final BulletRenderer bulletRenderer;
-    private final WeaponRenderer weaponRenderer;
-    private final CursorManager cursorManager;
+    private final GameRenderer gameRenderer;
 
-    private Map<Integer, RemotePlayer> remotePlayers;
-
-    private static final int CROSSHAIR_SCALE = 2;
+    private final Map<Integer, RemotePlayer> remotePlayers;
 
     private boolean isInLobby = false;
+    private boolean isPaused = false;
     private boolean loggedEmptyNpcSnapshot = false;
-    private BitmapFont font;
+    private boolean disposed = false;
 
-    public GameScreen(GameClient gameClient) {
+    public GameScreen(Main game, GameClient gameClient) {
+        this.game = game;
         this.gameClient = gameClient;
         this.gameClient.setGameListener(this);
         this.inputHandler = new InputHandler();
         Gdx.input.setInputProcessor(this.inputHandler);
 
-        this.batch = new SpriteBatch();
-        this.shapeRenderer = new ShapeRenderer();
-        this.healthBarRenderer = new HealthBarRenderer(shapeRenderer);
-
-        OrthographicCamera camera = new OrthographicCamera();
-        camera.setToOrtho(false, 800, 600);
-        this.cameraController = new CameraController(camera);
-
         this.map = new MapManager();
         this.player = new Player();
         this.remotePlayers = new HashMap<>();
-        this.font = FontManager.getMenuFont();
 
         // NPCs are now created and simulated only on server
         this.npcManager = new NpcManager();
+        this.corpses = new HashMap<>();
+
+        // Initialize renderer
+        this.gameRenderer = new GameRenderer();
 
         // Initialize refactored components
         float speed = 120f;
-        this.playerController = new PlayerController(player, inputHandler, gameClient, map, camera, speed);
-        this.bulletRenderer = new BulletRenderer();
-        this.weaponRenderer = new WeaponRenderer();
-        this.cursorManager = new CursorManager("guns/crosshair.png", CROSSHAIR_SCALE);
+        this.playerController = new PlayerController(player, inputHandler, gameClient, map, gameRenderer.getCameraController().getCamera(), speed);
 
         System.out.println("[GameScreen] Screen initialized, waiting for connection...");
     }
 
     @Override
     public void show() {
-        cursorManager.setCrosshairCursor();
+        gameRenderer.setCrosshairCursor();
+        Gdx.input.setInputProcessor(inputHandler);
         System.out.println("[GameScreen] Screen shown");
     }
 
     @Override
     public void render(float delta) {
-        Gdx.gl.glClearColor(0, 0, 0.2f, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
-        if (!isInLobby) {
-            batch.begin();
-            String message = "Connecting to lobby...";
-            font.getData().setScale(1.5f);
-            float textWidth = font.draw(batch, message, 0, 0).width;
-            font.draw(batch, message,
-                (Gdx.graphics.getWidth() - textWidth) / 2,
-                Gdx.graphics.getHeight() / 2);
-            batch.end();
+        // Don't render if already disposed
+        if (disposed) {
             return;
         }
 
-        // Update player and game state
-        playerController.update(delta, isInLobby);
+        Gdx.gl.glClearColor(0, 0, 0.2f, 1);
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        for (RemotePlayer remotePlayer : remotePlayers.values()) {
-            remotePlayer.update(delta, false);
+        // Handle ESC key to open menu
+        if (!isPaused && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            // Need to pass 'this' (GameScreen) to GameEscScreen?
+            // Yes, checking GameEscScreen constructor: public GameEscScreen(Main game, GameScreen gameScreen)
+            game.setScreen(new GameEscScreen(game, this));
+            return;
         }
 
-        // Update camera
-        cameraController.updateCamera(player, map.getWidthPx(), map.getHeightPx());
-        cameraController.getCamera().update();
-        batch.setProjectionMatrix(cameraController.getCamera().combined);
-        shapeRenderer.setProjectionMatrix(cameraController.getCamera().combined);
+        // Update player and game state if not paused and connected
+        if (!isPaused && isInLobby) {
+            playerController.update(delta, isInLobby);
 
-        // Render game objects
-        batch.enableBlending();
-        batch.begin();
-        map.render(batch);
-        npcManager.draw(batch);
-
-        // Render remote players with weapons
-        for (RemotePlayer remotePlayer : remotePlayers.values()) {
-            remotePlayer.render(batch);
-            weaponRenderer.drawShotgun(
-                batch,
-                remotePlayer.getCenterX(),
-                remotePlayer.getCenterY() + 8f,
-                remotePlayer.getAimX(),
-                remotePlayer.getAimY()
-            );
-        }
-
-        // Render local player with weapon
-        player.render(batch);
-        weaponRenderer.drawShotgun(
-            batch,
-            player.getCenterX(),
-            player.getCenterY() + 8f,
-            playerController.getLocalAimX(),
-            playerController.getLocalAimY()
-        );
-
-        // Render bullets
-        bulletRenderer.render(batch);
-        batch.end();
-
-        // Render health bars
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-
-        for (Npc npc : npcManager.getNpcs()) {
-            if (npc.isAlive()) {
-                healthBarRenderer.drawHealthBar(
-                    npc.getPosition().x - npc.getSize() / 2,
-                    npc.getPosition().y + npc.getSize() / 2,
-                    npc.getSize(),
-                    npc.getHealthPercentage()
-                );
+            for (RemotePlayer remotePlayer : remotePlayers.values()) {
+                remotePlayer.update(delta, false);
             }
         }
 
-        healthBarRenderer.drawHealthBar(
-            player.x,
-            player.y + player.getHeight(),
-            player.getWidth(),
-            player.getHealthPercentage()
-        );
+        // Delegate rendering to GameRenderer
+        gameRenderer.render(delta, isInLobby, player, remotePlayers, map, npcManager, corpses, playerController);
 
-        for (RemotePlayer remotePlayer : remotePlayers.values()) {
-            healthBarRenderer.drawHealthBar(
-                remotePlayer.x,
-                remotePlayer.y + remotePlayer.getHeight(),
-                remotePlayer.getWidth(),
-                remotePlayer.getHealthPercentage()
-            );
+        // Send updates to server if not paused and connected
+        if (!isPaused && isInLobby) {
+            playerController.sendInputToServer(isInLobby);
+            playerController.sendPositionUpdate(delta, isInLobby);
         }
-
-        shapeRenderer.end();
-
-        // Send updates to server
-        playerController.sendInputToServer(isInLobby);
-        playerController.sendPositionUpdate(delta, isInLobby);
     }
 
     @Override
     public void resize(int width, int height) {
+        gameRenderer.resize(width, height);
     }
 
     @Override
@@ -208,25 +129,40 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     @Override
     public void hide() {
-        cursorManager.resetCursor();
+        gameRenderer.resetCursor();
     }
 
     @Override
     public void dispose() {
-        batch.dispose();
-        shapeRenderer.dispose();
-        map.dispose();
-        player.dispose();
-        npcManager.dispose();
-        bulletRenderer.dispose();
-        weaponRenderer.dispose();
-        cursorManager.dispose();
-        for (RemotePlayer remotePlayer : remotePlayers.values()) {
-            remotePlayer.dispose();
+        if (disposed) {
+            return; // Already disposed
         }
-        gameClient.disconnect();
-    }
+        disposed = true;
 
+        System.out.println("[GameScreen] Disposing resources...");
+
+        // Disconnect from server first (in a non-blocking way)
+        try {
+            gameClient.disconnect();
+        } catch (Exception e) {
+            System.err.println("[GameScreen] Error disconnecting: " + e.getMessage());
+        }
+
+        // Dispose resources
+        try {
+            map.dispose();
+            player.dispose();
+            npcManager.dispose();
+            gameRenderer.dispose();
+            for (RemotePlayer remotePlayer : remotePlayers.values()) {
+                remotePlayer.dispose();
+            }
+        } catch (Exception e) {
+            System.err.println("[GameScreen] Error disposing resources: " + e.getMessage());
+        }
+
+        System.out.println("[GameScreen] Disposal complete");
+    }
 
     // GameClientListener callbacks
     @Override
@@ -310,9 +246,22 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             Set<Integer> seen = new HashSet<>();
             for (Network.BulletState state : bulletStateUpdate.bullets) {
                 seen.add(state.bulletId);
-                bulletRenderer.updateBullet(state.bulletId, state.x, state.y, state.angleDeg, state.radius);
+                gameRenderer.getBulletRenderer().updateBullet(state.bulletId, state.x, state.y, state.angleDeg, state.radius);
             }
-            bulletRenderer.cleanupBullets(seen);
+            gameRenderer.getBulletRenderer().cleanupBullets(seen);
+        });
+    }
+
+    @Override
+    public void onCorpseStateUpdate(Network.CorpseStateUpdate corpseStateUpdate) {
+        Gdx.app.postRunnable(() -> {
+            corpses.clear();
+            if (corpseStateUpdate.corpses == null) {
+                return;
+            }
+            for (Network.CorpseState state : corpseStateUpdate.corpses) {
+                corpses.put(state.corpseId, state);
+            }
         });
     }
 
@@ -357,4 +306,13 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
         });
     }
+
+    public void setPaused(boolean paused) {
+        this.isPaused = paused;
+    }
+
+    public boolean isDisposed() {
+        return disposed;
+    }
+
 }

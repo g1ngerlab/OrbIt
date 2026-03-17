@@ -37,7 +37,12 @@ public class PlayMenuScreen implements Screen {
     private boolean initialRequestSent = false;
 
     public PlayMenuScreen(Game game) {
+        this(game, null);
+    }
+
+    public PlayMenuScreen(Game game, LobbyInfoClient lobbyInfoClient) {
         this.game = game;
+        this.lobbyInfoClient = lobbyInfoClient;
     }
 
     @Override
@@ -72,8 +77,14 @@ public class PlayMenuScreen implements Screen {
         TextButton backButton = createBackButton();
         table.add(backButton).padBottom(20).size(500, 200).row();
 
-        // Initialize lobby info client and connect to server
-        lobbyInfoClient = new LobbyInfoClient();
+        // Use existing lobby info client or create new one
+        if (lobbyInfoClient == null) {
+            System.out.println("[PlayMenuScreen] Creating new LobbyInfoClient");
+            lobbyInfoClient = new LobbyInfoClient();
+        } else {
+            System.out.println("[PlayMenuScreen] Using existing LobbyInfoClient");
+        }
+
         lobbyInfoClient.setListener(lobbyPlayerCounts -> {
             // Update UI on main thread
             Gdx.app.postRunnable(() -> {
@@ -136,7 +147,7 @@ public class PlayMenuScreen implements Screen {
         GameClient gameClient = new GameClient(lobbyId);
 
         // Create GameScreen first so listener is attached before any server packets arrive.
-        game.setScreen(new GameScreen(gameClient));
+        game.setScreen(new GameScreen((Main) game, gameClient));
         gameClient.connect();
     }
 
