@@ -18,9 +18,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.auth.AuthState;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.network.Network;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 import java.util.List;
@@ -52,7 +54,7 @@ public class JoinLobbyScreen implements Screen {
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
 
-        background = new Texture(Gdx.files.internal("Space Background Laptop.gif"));
+        background = new Texture(Gdx.files.internal("LobbyBg.png"));
 
         Table mainTable = new Table();
         mainTable.setFillParent(true);
@@ -135,7 +137,7 @@ public class JoinLobbyScreen implements Screen {
         connecting = true;
         statusLabel.setText("Joining lobby...");
 
-        GameClient gameClient = new GameClient(lobbyId);
+        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
         game.setScreen(new GameScreen((Main) game, gameClient));
         gameClient.connect();
     }
@@ -160,7 +162,7 @@ public class JoinLobbyScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.begin();
-        batch.draw(background, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        BackgroundRenderer.drawCover(batch, background);
         batch.end();
 
         if (lobbyInfoClient != null) {
@@ -189,6 +191,7 @@ public class JoinLobbyScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     @Override public void pause() {}

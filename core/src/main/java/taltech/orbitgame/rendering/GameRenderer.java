@@ -2,9 +2,12 @@ package taltech.orbitgame.rendering;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import taltech.orbitgame.camera.CameraController;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
@@ -16,7 +19,11 @@ import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
 import taltech.orbitgame.network.Network;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class GameRenderer {
     private final SpriteBatch batch;
@@ -28,8 +35,27 @@ public class GameRenderer {
     private final CorpseRenderer corpseRenderer;
     private final CursorManager cursorManager;
     private final BitmapFont font;
+    private final BitmapFont hudFont;
+    private final GlyphLayout layout;
+    private final Texture orbTexture;
+    private final OrthographicCamera hudCamera;
 
     private static final int CROSSHAIR_SCALE = 2;
+    private static final float PLAYER_HEALTH_Y_OFFSET = 8f;
+    private static final float ORB_SCALE_AMPLITUDE = 0.05f;
+    private static final float ORB_ALPHA_BASE = 0.8f;
+    private static final float ORB_ALPHA_AMPLITUDE = 0.2f;
+    private static final float ORB_ANIM_SPEED = 2f;
+    private static final float ORB_WORLD_SIZE_MULTIPLIER = 1.25f;
+    private static final float ORB_DROP_HOP_DURATION = 1.25f;
+    private static final float ORB_DROP_HOP_HEIGHT = 14f;
+    private static final float ORB_LEVITATION_HEIGHT = 3.5f;
+    private static final float HUD_ORB_ICON_SIZE = 48f;
+
+    private float orbAnimTime = 0f;
+    private Map<Integer, Network.OrbState> currentOrbs = Collections.emptyMap();
+    private int currentSessionOrbCount = 0;
+    private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
 
     public GameRenderer() {
         this.batch = new SpriteBatch();
@@ -45,21 +71,26 @@ public class GameRenderer {
         this.corpseRenderer = new CorpseRenderer();
         this.cursorManager = new CursorManager("guns/crosshair.png", CROSSHAIR_SCALE);
         this.font = FontManager.getMenuFont();
+        this.hudFont = FontManager.getPixelFont(32);
+        this.layout = new GlyphLayout();
+        this.orbTexture = new Texture(Gdx.files.internal("loot/orb_v1.png"));
+        this.hudCamera = new OrthographicCamera();
+        this.hudCamera.setToOrtho(false, 800, 600);
     }
 
     public void render(float delta, boolean isInLobby, Player player, Map<Integer, RemotePlayer> remotePlayers,
                       MapManager map, NpcManager npcManager, Map<Integer, Network.CorpseState> corpses,
                       PlayerController playerController) {
 
+        orbAnimTime += delta;
+
         if (!isInLobby) {
-            batch.begin();
-            String message = "Connecting to lobby...";
-            font.getData().setScale(1.5f);
-            float textWidth = font.draw(batch, message, 0, 0).width;
-            font.draw(batch, message,
-                (Gdx.graphics.getWidth() - textWidth) / 2,
-                Gdx.graphics.getHeight() / 2f);
-            batch.end();
+            renderCenteredMessage("Connecting to lobby...");
+            return;
+        }
+
+        if (map == null || playerController == null) {
+            renderCenteredMessage("Loading map...");
             return;
         }
 
@@ -72,8 +103,9 @@ public class GameRenderer {
         // Render game objects
         batch.enableBlending();
         batch.begin();
-        map.render(batch);
+        map.render(batch, cameraController.getCamera());
         corpseRenderer.render(batch, corpses);
+        renderWorldOrbs(currentOrbs);
         npcManager.draw(batch);
 
         // Render remote players with weapons
@@ -104,6 +136,70 @@ public class GameRenderer {
 
         // Render health bars
         renderHealthBars(player, remotePlayers, npcManager);
+        renderHud(currentSessionOrbCount);
+    }
+
+    public void setOrbHudState(Map<Integer, Network.OrbState> orbs, int sessionOrbCount) {
+        this.currentOrbs = orbs == null ? Collections.emptyMap() : orbs;
+        this.currentSessionOrbCount = Math.max(0, sessionOrbCount);
+
+        Set<Integer> activeIds = new HashSet<>(this.currentOrbs.keySet());
+        orbFirstSeenTime.keySet().removeIf(id -> !activeIds.contains(id));
+        for (Integer orbId : activeIds) {
+            if (!orbFirstSeenTime.containsKey(orbId)) {
+                orbFirstSeenTime.put(orbId, orbAnimTime);
+            }
+        }
+    }
+
+    private void renderWorldOrbs(Map<Integer, Network.OrbState> orbs) {
+        if (orbs == null || orbs.isEmpty()) {
+            return;
+        }
+
+        for (Network.OrbState orb : orbs.values()) {
+            float phase = orbAnimTime * ORB_ANIM_SPEED + orb.orbId * 0.31f;
+            float scale = 1f + ORB_SCALE_AMPLITUDE * MathUtils.sin(phase);
+            float alpha = ORB_ALPHA_BASE + ORB_ALPHA_AMPLITUDE * MathUtils.sin(phase);
+
+            float firstSeen = orbFirstSeenTime.getOrDefault(orb.orbId, orbAnimTime);
+            float age = Math.max(0f, orbAnimTime - firstSeen);
+            float hop = 0f;
+            if (age < ORB_DROP_HOP_DURATION) {
+                float decay = 1f - (age / ORB_DROP_HOP_DURATION);
+                hop = ORB_DROP_HOP_HEIGHT * decay * Math.abs(MathUtils.sin(age * 16f));
+            }
+            float levitation = ORB_LEVITATION_HEIGHT * MathUtils.sin(phase * 0.9f);
+
+            float width = orb.radius * 2f * scale * ORB_WORLD_SIZE_MULTIPLIER;
+            float height = orb.radius * 2f * scale * ORB_WORLD_SIZE_MULTIPLIER;
+            float drawY = orb.y + hop + levitation;
+
+            batch.setColor(1f, 1f, 1f, alpha);
+            batch.draw(
+                orbTexture,
+                orb.x - width * 0.5f,
+                drawY - height * 0.5f,
+                width,
+                height
+            );
+        }
+
+        batch.setColor(1f, 1f, 1f, 1f);
+    }
+
+    private void renderHud(int sessionOrbCount) {
+        hudCamera.update();
+        batch.setProjectionMatrix(hudCamera.combined);
+        batch.begin();
+
+        float iconX = 18f;
+        float iconY = Gdx.graphics.getHeight() - 18f - HUD_ORB_ICON_SIZE;
+        batch.setColor(1f, 1f, 1f, 1f);
+        batch.draw(orbTexture, iconX, iconY, HUD_ORB_ICON_SIZE, HUD_ORB_ICON_SIZE);
+        hudFont.draw(batch, "x " + sessionOrbCount, iconX + HUD_ORB_ICON_SIZE + 14f, iconY + HUD_ORB_ICON_SIZE - 4f);
+
+        batch.end();
     }
 
     private void renderHealthBars(Player player, Map<Integer, RemotePlayer> remotePlayers, NpcManager npcManager) {
@@ -122,7 +218,7 @@ public class GameRenderer {
 
         healthBarRenderer.drawHealthBar(
             player.x,
-            player.y + player.getHeight(),
+            player.y + player.getHeight() + PLAYER_HEALTH_Y_OFFSET,
             player.getWidth(),
             player.getHealthPercentage()
         );
@@ -130,7 +226,7 @@ public class GameRenderer {
         for (RemotePlayer remotePlayer : remotePlayers.values()) {
             healthBarRenderer.drawHealthBar(
                 remotePlayer.x,
-                remotePlayer.y + remotePlayer.getHeight(),
+                remotePlayer.y + remotePlayer.getHeight() + PLAYER_HEALTH_Y_OFFSET,
                 remotePlayer.getWidth(),
                 remotePlayer.getHealthPercentage()
             );
@@ -140,7 +236,7 @@ public class GameRenderer {
     }
 
     public void resize(int width, int height) {
-        // Handle resize if needed
+        hudCamera.setToOrtho(false, width, height);
     }
 
     public void setCrosshairCursor() {
@@ -166,5 +262,21 @@ public class GameRenderer {
         weaponRenderer.dispose();
         corpseRenderer.dispose();
         cursorManager.dispose();
+        hudFont.dispose();
+        orbTexture.dispose();
+    }
+
+    private void renderCenteredMessage(String message) {
+        batch.begin();
+        font.getData().setScale(1.5f);
+        layout.setText(font, message);
+        font.draw(batch, message,
+            (Gdx.graphics.getWidth() - layout.width) / 2,
+            Gdx.graphics.getHeight() / 2f);
+        batch.end();
+    }
+
+    public void renderStatus(String message) {
+        renderCenteredMessage(message);
     }
 }

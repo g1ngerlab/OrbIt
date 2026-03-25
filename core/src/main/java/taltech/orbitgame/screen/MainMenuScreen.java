@@ -18,6 +18,7 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.client.LobbyInfoClient;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 /**
@@ -49,7 +50,7 @@ public class MainMenuScreen implements Screen {
         Gdx.input.setInputProcessor(stage);
 
         // Load assets
-        spaceBackground = new Texture(Gdx.files.internal("Space Background Laptop.gif"));
+        spaceBackground = new Texture(Gdx.files.internal("LobbyBg.png"));
 
         buttonTexture = new Texture(Gdx.files.internal("Buttons/button.png"));
         buttonTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
@@ -134,7 +135,7 @@ public class MainMenuScreen implements Screen {
 
         // Draw space background as fullscreen
         batch.begin();
-        batch.draw(spaceBackground, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        BackgroundRenderer.drawCover(batch, spaceBackground);
         batch.end();
 
         stage.act(delta);
@@ -144,6 +145,7 @@ public class MainMenuScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     @Override

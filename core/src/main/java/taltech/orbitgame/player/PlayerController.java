@@ -7,6 +7,7 @@ import com.badlogic.gdx.math.Vector3;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.network.Network.InputState;
+import taltech.orbitgame.world.Direction;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 
@@ -66,18 +67,22 @@ public class PlayerController {
         if (state.d) {
             nextX += speed * delta;
             moving = true;
+            player.setDirection(Direction.RIGHT);
         }
         if (state.a) {
             nextX -= speed * delta;
             moving = true;
+            player.setDirection(Direction.LEFT);
         }
         if (state.w) {
             nextY += speed * delta;
             moving = true;
+            player.setDirection(Direction.UP);
         }
         if (state.s) {
             nextY -= speed * delta;
             moving = true;
+            player.setDirection(Direction.DOWN);
         }
 
         // Apply movement if valid

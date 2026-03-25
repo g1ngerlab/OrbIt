@@ -11,7 +11,13 @@ gradle-app.setting
 /ios-moe/build/
 /headless/build/
 /server/build/
+/Server/build/
+/Test/build/
 /shared/build/
+**/build/
+**/reports/
+**/test-results/
+*.log
 
 ## Java:
 *.class
@@ -57,6 +63,7 @@ www-test/
 
 ## IntelliJ, Android Studio:
 .idea/
+.gradle/
 *.ipr
 *.iws
 *.iml
@@ -162,3 +169,4 @@ Thumbs.db
 ## You should delete or comment out the next line if you have configuration in a different resource-config.json .
 **/resource-config.json
 /.bat/
+/cache/

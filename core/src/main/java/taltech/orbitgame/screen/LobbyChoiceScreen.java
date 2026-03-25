@@ -17,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.client.LobbyInfoClient;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 /**
@@ -40,7 +41,7 @@ public class LobbyChoiceScreen implements Screen {
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
 
-        background = new Texture(Gdx.files.internal("Space Background Laptop.gif"));
+        background = new Texture(Gdx.files.internal("LobbyBg.png"));
 
         Table table = new Table();
         table.setFillParent(true);
@@ -100,7 +101,7 @@ public class LobbyChoiceScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.begin();
-        batch.draw(background, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        BackgroundRenderer.drawCover(batch, background);
         batch.end();
 
         stage.act(delta);
@@ -110,6 +111,7 @@ public class LobbyChoiceScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     @Override
