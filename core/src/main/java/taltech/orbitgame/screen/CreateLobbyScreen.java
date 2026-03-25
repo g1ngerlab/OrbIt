@@ -19,9 +19,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.auth.AuthState;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.network.Network;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 /**
@@ -33,6 +35,10 @@ public class CreateLobbyScreen implements Screen {
     private Stage stage;
     private SpriteBatch batch;
     private Texture background;
+    private Texture dimOverlay;
+    private Texture labelBgTexture;
+    private Texture textFieldBg;
+    private Texture cursorTexture;
     private TextField nameField;
     private Label statusLabel;
     private boolean creatingLobby = false;
@@ -49,7 +55,12 @@ public class CreateLobbyScreen implements Screen {
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
 
-        background = new Texture(Gdx.files.internal("Space Background Laptop.gif"));
+        background = new Texture(Gdx.files.internal("LobbyBg.png"));
+        Pixmap dimPixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        dimPixmap.setColor(0f, 0f, 0f, 0.25f);
+        dimPixmap.fill();
+        dimOverlay = new Texture(dimPixmap);
+        dimPixmap.dispose();
 
         Table table = new Table();
         table.setFillParent(true);
@@ -58,22 +69,30 @@ public class CreateLobbyScreen implements Screen {
         Label titleLabel = new Label("Create Lobby", new Label.LabelStyle(FontManager.getMenuFontLarge(), Color.WHITE));
         table.add(titleLabel).padTop(30).padBottom(50).row();
 
-        // Lobby name input label
-        Label nameLabel = new Label("Lobby Name (max 12 characters):", new Label.LabelStyle(FontManager.getMenuFont(), Color.WHITE));
+        // Lobby name input label with readable background
+        Pixmap labelBgPixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
+        labelBgPixmap.setColor(0f, 0f, 0f, 0.55f);
+        labelBgPixmap.fill();
+        labelBgTexture = new Texture(labelBgPixmap);
+        labelBgPixmap.dispose();
+
+        Label.LabelStyle nameStyle = new Label.LabelStyle(FontManager.getMenuFont(), Color.WHITE);
+        nameStyle.background = new TextureRegionDrawable(labelBgTexture);
+        Label nameLabel = new Label("Lobby Name (max 12 characters):", nameStyle);
         table.add(nameLabel).padBottom(10).row();
 
         // Create simple background for text field
         Pixmap bgPixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
         bgPixmap.setColor(0.2f, 0.2f, 0.3f, 0.9f);
         bgPixmap.fill();
-        Texture textFieldBg = new Texture(bgPixmap);
+        textFieldBg = new Texture(bgPixmap);
         bgPixmap.dispose();
 
         // Create cursor (thin white line)
         Pixmap cursorPixmap = new Pixmap(2, 1, Pixmap.Format.RGBA8888);
         cursorPixmap.setColor(Color.WHITE);
         cursorPixmap.fill();
-        Texture cursorTexture = new Texture(cursorPixmap);
+        cursorTexture = new Texture(cursorPixmap);
         cursorPixmap.dispose();
 
         TextField.TextFieldStyle textFieldStyle = new TextField.TextFieldStyle();
@@ -120,7 +139,7 @@ public class CreateLobbyScreen implements Screen {
                     Gdx.app.postRunnable(() -> {
                         System.out.println("[CreateLobbyScreen] Lobby created: " + lobbyId + " - " + lobbyName);
                         // Join the newly created lobby
-                        GameClient gameClient = new GameClient(lobbyId);
+                        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
                         game.setScreen(new GameScreen((Main) game, gameClient));
                         gameClient.connect();
                     });
@@ -185,7 +204,9 @@ public class CreateLobbyScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.begin();
-        batch.draw(background, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        BackgroundRenderer.drawCover(batch, background);
+        batch.setColor(1f, 1f, 1f, 1f);
+        batch.draw(dimOverlay, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         batch.end();
 
         // If we have a pending lobby to create, wait for connection then send
@@ -202,6 +223,7 @@ public class CreateLobbyScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     @Override public void pause() {}
@@ -217,5 +239,17 @@ public class CreateLobbyScreen implements Screen {
         stage.dispose();
         batch.dispose();
         background.dispose();
+        if (dimOverlay != null) {
+            dimOverlay.dispose();
+        }
+        if (labelBgTexture != null) {
+            labelBgTexture.dispose();
+        }
+        if (textFieldBg != null) {
+            textFieldBg.dispose();
+        }
+        if (cursorTexture != null) {
+            cursorTexture.dispose();
+        }
     }
 }

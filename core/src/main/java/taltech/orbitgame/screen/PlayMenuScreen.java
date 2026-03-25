@@ -15,8 +15,10 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.auth.AuthState;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 import java.util.HashMap;
@@ -51,7 +53,7 @@ public class PlayMenuScreen implements Screen {
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
 
-        background = new Texture(Gdx.files.internal("Space Background Laptop.gif"));
+        background = new Texture(Gdx.files.internal("LobbyBg.png"));
         font = FontManager.getMenuFont();
 
         lobbyButtons = new HashMap<>();
@@ -144,7 +146,7 @@ public class PlayMenuScreen implements Screen {
         statusLabel.setText("Connecting to Lobby " + lobbyId + "...");
         System.out.println("[PlayMenuScreen] Connecting to Lobby " + lobbyId);
 
-        GameClient gameClient = new GameClient(lobbyId);
+        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
 
         // Create GameScreen first so listener is attached before any server packets arrive.
         game.setScreen(new GameScreen((Main) game, gameClient));
@@ -178,7 +180,7 @@ public class PlayMenuScreen implements Screen {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         batch.begin();
-        batch.draw(background, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        BackgroundRenderer.drawCover(batch, background);
         batch.end();
 
         // Send initial request after connection is established
@@ -204,6 +206,7 @@ public class PlayMenuScreen implements Screen {
     @Override
     public void resize(int width, int height) {
         stage.getViewport().update(width, height, true);
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
     }
 
     @Override

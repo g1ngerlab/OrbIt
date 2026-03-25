@@ -3,16 +3,17 @@ package taltech.orbitgame.screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.Texture;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.client.LobbyInfoClient;
+import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
 
 /**
  * Initial splash screen that shows while connecting to the server.
- * Connects once and waits until connected before proceeding.
+ * Retries connection in background until connected, then proceeds.
  */
 public class ConnectionScreen implements Screen {
 
@@ -21,6 +22,7 @@ public class ConnectionScreen implements Screen {
     private final BitmapFont titleFont;
     private final BitmapFont statusFont;
     private LobbyInfoClient lobbyInfoClient;
+    private Texture background;
 
     private float elapsedTime = 0;
     private static final float MIN_DISPLAY_TIME = 1.5f;
@@ -36,16 +38,15 @@ public class ConnectionScreen implements Screen {
     public void show() {
         System.out.println("[ConnectionScreen] Starting connection to server...");
         lobbyInfoClient = new LobbyInfoClient();
+        background = new Texture(Gdx.files.internal("LobbyBg.png"));
     }
 
     @Override
     public void render(float delta) {
         elapsedTime += delta;
 
-        Gdx.gl.glClearColor(0, 0, 0, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
-
         batch.begin();
+        BackgroundRenderer.drawCover(batch, background);
 
         // Draw "AAA Studios"
         titleFont.getData().setScale(2.5f);
@@ -56,11 +57,12 @@ public class ConnectionScreen implements Screen {
         float titleY = Gdx.graphics.getHeight() * 0.6f;
         titleFont.draw(batch, title, titleX, titleY);
 
-        // Draw animated "Connecting to server..."
+        // Draw animated connection status based on current retry state.
         statusFont.getData().setScale(1.2f);
         statusFont.setColor(Color.LIGHT_GRAY);
         int dots = (int) (elapsedTime * 2) % 4;
-        String status = "Connecting to server" + ".".repeat(dots);
+        String baseStatus = lobbyInfoClient == null ? "Connecting to server" : lobbyInfoClient.getConnectionStatusMessage();
+        String status = baseStatus + buildDots(dots);
         float statusWidth = statusFont.draw(batch, status, 0, 0).width;
         float statusX = (Gdx.graphics.getWidth() - statusWidth) / 2;
         float statusY = Gdx.graphics.getHeight() * 0.4f;
@@ -71,24 +73,43 @@ public class ConnectionScreen implements Screen {
         // Only proceed when actually connected and minimum display time passed
         if (elapsedTime >= MIN_DISPLAY_TIME && lobbyInfoClient != null && lobbyInfoClient.isConnected()) {
             System.out.println("[ConnectionScreen] Connection successful!");
-            game.setScreen(new MainMenuScreen(game, lobbyInfoClient));
+            game.setScreen(new AuthScreen(game, lobbyInfoClient));
         }
     }
 
-    @Override
-    public void resize(int width, int height) {}
+    private String buildDots(int count) {
+        StringBuilder builder = new StringBuilder(count);
+        for (int i = 0; i < count; i++) {
+            builder.append('.');
+        }
+        return builder.toString();
+    }
 
     @Override
-    public void pause() {}
+    public void resize(int width, int height) {
+        batch.getProjectionMatrix().setToOrtho2D(0, 0, width, height);
+    }
 
     @Override
-    public void resume() {}
+    public void pause() {
+        // No-op: this screen has no pause-specific state.
+    }
 
     @Override
-    public void hide() {}
+    public void resume() {
+        // No-op: this screen restores itself automatically.
+    }
+
+    @Override
+    public void hide() {
+        // No-op: resources are released in dispose().
+    }
 
     @Override
     public void dispose() {
         batch.dispose();
+        if (background != null) {
+            background.dispose();
+        }
     }
 }

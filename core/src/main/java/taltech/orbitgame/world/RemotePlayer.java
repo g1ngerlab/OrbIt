@@ -2,36 +2,69 @@ package taltech.orbitgame.world;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.Texture;
+import taltech.orbitgame.util.FontManager;
 
 /**
  * Represents a remote player (other players in the lobby)
  */
 public class RemotePlayer {
-    private Texture texture;
-    private Animation<TextureRegion> runAnimation;
-    private float stateTime = 0f;
+    private static final int RUN_SIDE_FRAMES = 7;
+    private static final int RUN_UP_FRAMES = 6;
+    private static final int RUN_DOWN_FRAMES = 8;
+    private static final int IDLE_FRAMES = 10;
+
+    private static final float RUN_FRAME_TIME = 0.07f;
+    private static final float IDLE_FRAME_TIME = 0.09f;
+    private static final float DRAW_SCALE = 1f / 1.5f;
+    private static final float NAME_Y_OFFSET = 40f;
+
+    private final Texture runSideTexture;
+    private final Texture runUpTexture;
+    private final Texture runDownTexture;
+    private final Texture idleTexture;
+
+    private final Animation<TextureRegion> runSideAnimation;
+    private final Animation<TextureRegion> runUpAnimation;
+    private final Animation<TextureRegion> runDownAnimation;
+    private final Animation<TextureRegion> idleAnimation;
+
+    private float runTime = 0f;
+    private float idleTime = 0f;
+
+    private Direction direction = Direction.DOWN;
+    private boolean moving = false;
 
     public float x = 100;
     public float y = 100;
     public int clientId;
     public String playerName;
 
-    private int frameWidth;
-    private int frameHeight;
-    private int drawWidth;
-    private int drawHeight;
+    private int sideFrameWidth;
+    private int sideFrameHeight;
+    private int upFrameWidth;
+    private int upFrameHeight;
+    private int downFrameWidth;
+    private int downFrameHeight;
+    private int idleFrameWidth;
+    private int idleFrameHeight;
+
     private int colliderWidth;
     private int colliderHeight;
+
+    private float lastX;
+    private float lastY;
 
     private float aimX;
     private float aimY;
 
     private BitmapFont font;
+    private GlyphLayout nameLayout;
 
     // Health system
     private float maxHealth;
@@ -42,28 +75,34 @@ public class RemotePlayer {
         this.playerName = playerName;
         this.x = x;
         this.y = y;
+        this.lastX = x;
+        this.lastY = y;
 
-        texture = new Texture(Gdx.files.internal("player/BadBoy.png"));
+        runSideTexture = new Texture(Gdx.files.internal("player/run_side.png"));
+        runUpTexture = new Texture(Gdx.files.internal("player/run_up.png"));
+        runDownTexture = new Texture(Gdx.files.internal("player/run_down.png"));
+        idleTexture = new Texture(Gdx.files.internal("player/without_run.png"));
 
-        frameWidth = texture.getWidth() / 16;
-        frameHeight = texture.getHeight();
-        drawWidth = frameWidth;
-        drawHeight = frameHeight;
+        sideFrameWidth = runSideTexture.getWidth() / RUN_SIDE_FRAMES;
+        sideFrameHeight = runSideTexture.getHeight();
+        upFrameWidth = runUpTexture.getWidth() / RUN_UP_FRAMES;
+        upFrameHeight = runUpTexture.getHeight();
+        downFrameWidth = runDownTexture.getWidth() / RUN_DOWN_FRAMES;
+        downFrameHeight = runDownTexture.getHeight();
+        idleFrameWidth = idleTexture.getWidth() / IDLE_FRAMES;
+        idleFrameHeight = idleTexture.getHeight();
+
         colliderWidth = 32;
         colliderHeight = 48;
 
-        TextureRegion[][] tmp = TextureRegion.split(texture, frameWidth, frameHeight);
-        TextureRegion[] frames = new TextureRegion[16];
+        runSideAnimation = createAnimation(runSideTexture, sideFrameWidth, sideFrameHeight, RUN_SIDE_FRAMES, RUN_FRAME_TIME);
+        runUpAnimation = createAnimation(runUpTexture, upFrameWidth, upFrameHeight, RUN_UP_FRAMES, RUN_FRAME_TIME);
+        runDownAnimation = createAnimation(runDownTexture, downFrameWidth, downFrameHeight, RUN_DOWN_FRAMES, RUN_FRAME_TIME);
+        idleAnimation = createAnimation(idleTexture, idleFrameWidth, idleFrameHeight, IDLE_FRAMES, IDLE_FRAME_TIME);
 
-        for (int i = 0; i < 16; i++) {
-            frames[i] = tmp[0][i];
-        }
-
-        runAnimation = new Animation<>(0.07f, frames);
-
-        font = new BitmapFont();
+        font = FontManager.getPixelFont(12);
         font.setColor(Color.YELLOW);
-        font.getData().setScale(0.8f);
+        nameLayout = new GlyphLayout();
 
         // Initialize health
         this.maxHealth = 100f;
@@ -73,40 +112,59 @@ public class RemotePlayer {
         this.aimY = getCenterY();
     }
 
-    public void update(float delta, boolean moving) {
+    public void update(float delta) {
         if (moving) {
-            stateTime += delta;
+            runTime += delta;
         } else {
-            stateTime = 0;
+            idleTime += delta;
         }
     }
 
     public void updatePosition(float x, float y, boolean moving, float aimX, float aimY) {
+        float dx = x - this.lastX;
+        float dy = y - this.lastY;
+        this.moving = moving;
+        if (this.moving) {
+            updateDirectionFromDelta(dx, dy);
+        }
+        this.lastX = x;
+        this.lastY = y;
         this.x = x;
         this.y = y;
         this.aimX = aimX;
         this.aimY = aimY;
-        update(0, moving);
+        update(0);
     }
 
     public void render(SpriteBatch batch) {
-        TextureRegion currentFrame = runAnimation.getKeyFrame(stateTime, true);
+        Animation<TextureRegion> animation = resolveAnimation();
+        TextureRegion currentFrame = animation.getKeyFrame(moving ? runTime : idleTime, true);
+        int drawWidth = Math.round(resolveFrameWidth(animation) * DRAW_SCALE);
+        int drawHeight = Math.round(resolveFrameHeight(animation) * DRAW_SCALE);
 
         Color prev = batch.getColor();
         batch.setColor(1f, 1f, 1f, 1f);
         float drawX = x + (colliderWidth - drawWidth) * 0.5f;
         float drawY = y;
-        batch.draw(currentFrame, drawX, drawY, drawWidth, drawHeight);
+        if (direction == Direction.RIGHT && animation == runSideAnimation) {
+            batch.draw(currentFrame, drawX + drawWidth, drawY, -drawWidth, drawHeight);
+        } else {
+            batch.draw(currentFrame, drawX, drawY, drawWidth, drawHeight);
+        }
         batch.setColor(prev);
 
         // Draw player name above the player
-        float nameX = x + colliderWidth / 2f - font.getSpaceXadvance() * playerName.length() / 2f;
-        float nameY = y + colliderHeight + 10;
+        nameLayout.setText(font, playerName);
+        float nameX = x + colliderWidth / 2f - nameLayout.width / 2f;
+        float nameY = y + colliderHeight + NAME_Y_OFFSET;
         font.draw(batch, playerName, nameX, nameY);
     }
 
     public void dispose() {
-        texture.dispose();
+        runSideTexture.dispose();
+        runUpTexture.dispose();
+        runDownTexture.dispose();
+        idleTexture.dispose();
         font.dispose();
     }
 
@@ -195,5 +253,70 @@ public class RemotePlayer {
      */
     public boolean isAlive() {
         return currentHealth > 0f;
+    }
+
+    private Animation<TextureRegion> resolveAnimation() {
+        if (moving) {
+            switch (direction) {
+                case UP:
+                    return runUpAnimation;
+                case DOWN:
+                    return runDownAnimation;
+                case LEFT:
+                case RIGHT:
+                default:
+                    return runSideAnimation;
+            }
+        }
+        return idleAnimation;
+    }
+
+    private int resolveFrameWidth(Animation<TextureRegion> animation) {
+        if (animation == runUpAnimation) {
+            return upFrameWidth;
+        }
+        if (animation == runDownAnimation) {
+            return downFrameWidth;
+        }
+        if (animation == idleAnimation) {
+            return idleFrameWidth;
+        }
+        return sideFrameWidth;
+    }
+
+    private int resolveFrameHeight(Animation<TextureRegion> animation) {
+        if (animation == runUpAnimation) {
+            return upFrameHeight;
+        }
+        if (animation == runDownAnimation) {
+            return downFrameHeight;
+        }
+        if (animation == idleAnimation) {
+            return idleFrameHeight;
+        }
+        return sideFrameHeight;
+    }
+
+    private void updateDirectionFromDelta(float dx, float dy) {
+        float absX = Math.abs(dx);
+        float absY = Math.abs(dy);
+        if (absX < 0.01f && absY < 0.01f) {
+            return;
+        }
+        if (absX >= absY) {
+            direction = dx >= 0f ? Direction.RIGHT : Direction.LEFT;
+        } else {
+            direction = dy >= 0f ? Direction.UP : Direction.DOWN;
+        }
+    }
+
+    private static Animation<TextureRegion> createAnimation(Texture texture, int frameWidth, int frameHeight,
+                                                            int frames, float frameTime) {
+        TextureRegion[][] tmp = TextureRegion.split(texture, frameWidth, frameHeight);
+        TextureRegion[] regions = new TextureRegion[frames];
+        for (int i = 0; i < frames; i++) {
+            regions[i] = tmp[0][i];
+        }
+        return new Animation<>(frameTime, regions);
     }
 }

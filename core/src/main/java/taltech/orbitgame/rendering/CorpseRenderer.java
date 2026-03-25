@@ -17,15 +17,15 @@ public class CorpseRenderer {
     private final TextureRegion robotFrame;
 
     public CorpseRenderer() {
-        this.playerTexture = new Texture(Gdx.files.internal("player/BadBoy.png"));
-        this.robotTexture = new Texture(Gdx.files.internal("npc/npc1/npc1-idle-Sheet.png"));
+        this.playerTexture = new Texture(Gdx.files.internal("player/without_run.png"));
+        this.robotTexture = new Texture(Gdx.files.internal("npc/robotbutler.png"));
 
         // Use a single frame from each spritesheet for static corpses.
         this.playerFrame = new TextureRegion(
             playerTexture,
             0,
             0,
-            Math.max(1, playerTexture.getWidth() / 16),
+            Math.max(1, playerTexture.getWidth() / 10),
             playerTexture.getHeight()
         );
 

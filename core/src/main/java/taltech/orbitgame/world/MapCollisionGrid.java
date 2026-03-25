@@ -24,16 +24,21 @@ public class MapCollisionGrid {
         }
     }
 
-    private final int[][] collision;
+    private final byte[] collision;
     private final int collisionGridSize;
+    private final int collisionWidth;
+    private final int collisionHeight;
     private final int mapWidthPx;
     private final int mapHeightPx;
 
     public MapCollisionGrid(Path ldtkPath) {
+        long startMs = System.currentTimeMillis();
         try {
             // Java 8-compatible file loading (avoids Files.readString which requires Java 11+).
             String mapJson = new String(Files.readAllBytes(ldtkPath), StandardCharsets.UTF_8);
+            long readMs = System.currentTimeMillis();
             JsonValue mapData = new JsonReader().parse(mapJson);
+            long parseMs = System.currentTimeMillis();
             JsonValue level = mapData.get("levels").get(0);
 
             this.mapWidthPx = level.getInt("pxWid");
@@ -41,13 +46,19 @@ public class MapCollisionGrid {
 
             CollisionLayerData layerData = parseCollisionLayer(level);
             this.collisionGridSize = layerData.gridSize;
-            this.collision = new int[layerData.width][layerData.height];
+            this.collisionWidth = layerData.width;
+            this.collisionHeight = layerData.height;
+            this.collision = new byte[layerData.width * layerData.height];
 
-            for (int i = 0; i < layerData.intGrid.size; i++) {
-                int x = i % layerData.width;
-                int y = i / layerData.width;
-                collision[x][y] = layerData.intGrid.getInt(i);
+            int i = 0;
+            for (JsonValue cell = layerData.intGrid.child; cell != null; cell = cell.next) {
+                collision[i++] = (byte) (cell.asInt() == 0 ? 0 : 1);
             }
+            long buildMs = System.currentTimeMillis();
+            System.out.println("[MapCollisionGrid] Loaded in " + (buildMs - startMs)
+                + " ms | read_bytes=" + (readMs - startMs)
+                + " ms | parse_json=" + (parseMs - readMs)
+                + " ms | build_collision=" + (buildMs - parseMs) + " ms");
         } catch (IOException e) {
             throw new IllegalStateException("Failed to read map file: " + ldtkPath, e);
         }
@@ -71,13 +82,13 @@ public class MapCollisionGrid {
         int tileX = (int) (worldX / collisionGridSize);
         int tileY = (int) (worldY / collisionGridSize);
 
-        tileY = collision[0].length - 1 - tileY;
+        tileY = collisionHeight - 1 - tileY;
 
-        if (tileX < 0 || tileY < 0 || tileX >= collision.length || tileY >= collision[0].length) {
+        if (tileX < 0 || tileY < 0 || tileX >= collisionWidth || tileY >= collisionHeight) {
             return true;
         }
 
-        return collision[tileX][tileY] != 0;
+        return collision[tileY * collisionWidth + tileX] != 0;
     }
 
     public float[] findRandomOpenPosition(Random random) {
@@ -89,11 +100,11 @@ public class MapCollisionGrid {
             }
         }
 
-        for (int y = 0; y < collision[0].length; y++) {
-            for (int x = 0; x < collision.length; x++) {
-                if (collision[x][y] == 0) {
+        for (int y = 0; y < collisionHeight; y++) {
+            for (int x = 0; x < collisionWidth; x++) {
+                if (collision[y * collisionWidth + x] == 0) {
                     float worldX = x * collisionGridSize;
-                    float worldY = (collision[0].length - 1 - y) * collisionGridSize;
+                    float worldY = (collisionHeight - 1 - y) * collisionGridSize;
                     return new float[] {worldX, worldY};
                 }
             }

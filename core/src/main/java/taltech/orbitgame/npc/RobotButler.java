@@ -11,11 +11,18 @@ import com.badlogic.gdx.math.Vector2;
 import java.util.List;
 
 public class RobotButler extends Npc {
+    private static final String IDLE_SHEET_PATH = "npc/robotbutler.png";
+    private static final String RUN_SHEET_PATH = "npc/runbutler.png";
+    private static final String FIGHT_SHEET_PATH = "npc/fightbutler.png";
+    private static final int RUN_FRAME_COUNT = 10;
+    private static final int FIGHT_FRAME_COUNT = 5;
     private static Texture idleTexture;
     private static Texture runTexture;
+    private static Texture fightTexture;
     private static Texture fallbackTexture;
     private static Animation<TextureRegion> idleAnimation;
     private static Animation<TextureRegion> runAnimation;
+    private static Animation<TextureRegion> fightAnimation;
 
     private final Vector2 homePosition;
     private final float territoryRadius;
@@ -23,6 +30,12 @@ public class RobotButler extends Npc {
     private float patrolTimer;
     private Vector2 patrolTarget;
     private float stateTime;
+    private boolean movingForAnimation;
+    private boolean facingLeft;
+    private float lastNetworkX;
+    private float lastNetworkY;
+    private boolean hasNetworkPos;
+    private float attackTimer;
 
     public RobotButler(int id, float x, float y, float territoryRadius) {
         super(id, x, y, 25f); // RobotButler has 25 HP
@@ -31,37 +44,45 @@ public class RobotButler extends Npc {
         this.speed = 80f;
         this.detectionRange = 150f;
         this.chaseStopDistance = 250f;
-        this.size = 32f;
+        this.size = 40f;
         this.patrolTimer = 0;
         this.patrolTarget = new Vector2(homePosition);
         this.stateTime = 0f;
+        this.movingForAnimation = false;
+        this.facingLeft = false;
+        this.hasNetworkPos = false;
+        this.attackTimer = 0f;
     }
 
     private static void ensureTexturesLoaded() {
-        if (idleAnimation != null && runAnimation != null) {
+        if (idleAnimation != null && runAnimation != null && fightAnimation != null) {
             return;
         }
 
         try {
-            idleTexture = new Texture(Gdx.files.internal("npc/npc1/npc1-idle-Sheet.png"));
-            runTexture = new Texture(Gdx.files.internal("npc/npc1/npc1-Sheet.png"));
+            idleTexture = new Texture(Gdx.files.internal(IDLE_SHEET_PATH));
+            runTexture = new Texture(Gdx.files.internal(RUN_SHEET_PATH));
+            fightTexture = new Texture(Gdx.files.internal(FIGHT_SHEET_PATH));
 
-            // Current sheets are 64px high, one row of frames.
-            idleAnimation = buildAnimation(idleTexture, 64, 0.15f);
-            runAnimation = buildAnimation(runTexture, 64, 0.08f);
+            // Single-row sheets. Idle is a single frame, run is a 10-frame strip.
+            idleAnimation = buildAnimation(idleTexture, 1, 0.15f);
+            runAnimation = buildAnimation(runTexture, RUN_FRAME_COUNT, 0.08f);
+            fightAnimation = buildAnimation(fightTexture, FIGHT_FRAME_COUNT, 0.07f);
         } catch (Exception e) {
             // If texture loading fails, keep robots visible with a plain square.
             idleAnimation = null;
             runAnimation = null;
+            fightAnimation = null;
             ensureFallbackTexture();
         }
     }
 
-    private static Animation<TextureRegion> buildAnimation(Texture texture, int frameSize, float frameDuration) {
-        int frameCount = Math.max(1, texture.getWidth() / frameSize);
-        TextureRegion[][] split = TextureRegion.split(texture, frameSize, texture.getHeight());
-        TextureRegion[] frames = new TextureRegion[frameCount];
-        for (int i = 0; i < frameCount; i++) {
+    private static Animation<TextureRegion> buildAnimation(Texture texture, int frameCount, float frameDuration) {
+        int safeFrameCount = Math.max(1, frameCount);
+        int frameWidth = Math.max(1, texture.getWidth() / safeFrameCount);
+        TextureRegion[][] split = TextureRegion.split(texture, frameWidth, texture.getHeight());
+        TextureRegion[] frames = new TextureRegion[safeFrameCount];
+        for (int i = 0; i < safeFrameCount; i++) {
             frames[i] = split[0][i];
         }
         return new Animation<>(frameDuration, frames);
@@ -98,11 +119,9 @@ public class RobotButler extends Npc {
 
         position.add(velocity.cpy().scl(deltaTime));
 
-        // Update animation timer
-        if (velocity.len() > 0.1f) {
-            stateTime += deltaTime;
-        } else {
-            stateTime = 0f;
+        movingForAnimation = velocity.len() > 0.1f;
+        if (Math.abs(velocity.x) > 0.01f) {
+            facingLeft = velocity.x < 0f;
         }
     }
 
@@ -148,25 +167,39 @@ public class RobotButler extends Npc {
     public void draw(SpriteBatch batch) {
         ensureTexturesLoaded();
 
-        if (idleAnimation == null || runAnimation == null) {
-            batch.setColor(isChasing ? 1f : 0f, 0f, 0f, 1f);
-            batch.draw(fallbackTexture, position.x - size / 2f, position.y - size / 2f, size, size);
+        if (idleAnimation == null || runAnimation == null || fightAnimation == null) {
             batch.setColor(1f, 1f, 1f, 1f);
+            batch.draw(fallbackTexture, position.x - size / 2f, position.y - size / 2f, size, size);
             return;
         }
 
-        Animation<TextureRegion> currentAnimation = isChasing ? runAnimation : idleAnimation;
-        TextureRegion currentFrame = currentAnimation.getKeyFrame(stateTime, true);
-
-        // Tint red when chasing
-        if (isChasing) {
-            batch.setColor(1f, 0.3f, 0.3f, 1f);
-        } else {
-            batch.setColor(1f, 1f, 1f, 1f);
+        if (attackTimer > 0f) {
+            attackTimer -= Gdx.graphics.getDeltaTime();
         }
 
-        batch.draw(currentFrame, position.x - size / 2f, position.y - size / 2f, size, size);
-        batch.setColor(1f, 1f, 1f, 1f); // Reset color
+        boolean moving = movingForAnimation;
+        boolean animating = moving || attackTimer > 0f;
+        if (animating) {
+            stateTime += Gdx.graphics.getDeltaTime();
+        } else {
+            stateTime = 0f;
+        }
+
+        Animation<TextureRegion> currentAnimation;
+        if (attackTimer > 0f) {
+            currentAnimation = fightAnimation;
+        } else {
+            currentAnimation = moving ? runAnimation : idleAnimation;
+        }
+        TextureRegion currentFrame = currentAnimation.getKeyFrame(stateTime, true);
+
+        float drawX = position.x - size / 2f;
+        float drawY = position.y - size / 2f;
+        if (facingLeft) {
+            batch.draw(currentFrame, drawX + size, drawY, -size, size);
+        } else {
+            batch.draw(currentFrame, drawX, drawY, size, size);
+        }
     }
 
     @Override
@@ -182,6 +215,31 @@ public class RobotButler extends Npc {
         return territoryRadius;
     }
 
+    @Override
+    public void applyNetworkState(float x, float y, boolean chasing, float size) {
+        if (hasNetworkPos) {
+            float dx = x - lastNetworkX;
+            float dy = y - lastNetworkY;
+            movingForAnimation = (Math.abs(dx) + Math.abs(dy)) > 0.1f;
+            if (Math.abs(dx) > 0.01f) {
+                facingLeft = dx < 0f;
+            }
+        } else {
+            movingForAnimation = false;
+            hasNetworkPos = true;
+        }
+        lastNetworkX = x;
+        lastNetworkY = y;
+        super.applyNetworkState(x, y, chasing, size);
+    }
+
+    @Override
+    public void onAttack() {
+        float duration = FIGHT_FRAME_COUNT * 0.07f;
+        attackTimer = Math.max(attackTimer, duration);
+        stateTime = 0f;
+    }
+
     public static void disposeTextures() {
         if (idleTexture != null) {
             idleTexture.dispose();
@@ -191,11 +249,16 @@ public class RobotButler extends Npc {
             runTexture.dispose();
             runTexture = null;
         }
+        if (fightTexture != null) {
+            fightTexture.dispose();
+            fightTexture = null;
+        }
         if (fallbackTexture != null) {
             fallbackTexture.dispose();
             fallbackTexture = null;
         }
         idleAnimation = null;
         runAnimation = null;
+        fightAnimation = null;
     }
 }

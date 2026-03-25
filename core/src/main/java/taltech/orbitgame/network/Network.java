@@ -5,7 +5,8 @@ import com.esotericsoftware.kryonet.EndPoint;
 
 // This class will be shared by both the client and server.
 public class Network {
-    public static final int PORT = 54555;
+    //public static final int PORT = 54555;
+    public static final int PORT = 8080;
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
@@ -27,15 +28,20 @@ public class Network {
         kryo.register(java.util.HashMap.class);
         kryo.register(NpcState.class);
         kryo.register(NpcStateUpdate.class);
+        kryo.register(NpcAttack.class);
         kryo.register(ShootRequest.class);
         kryo.register(BulletState.class);
         kryo.register(BulletStateUpdate.class);
         kryo.register(CorpseState.class);
         kryo.register(CorpseStateUpdate.class);
+        kryo.register(OrbState.class);
+        kryo.register(OrbStateUpdate.class);
+        kryo.register(SessionOrbCountUpdate.class);
         kryo.register(PlayerHealthUpdate.class);
         kryo.register(EntityDied.class);
         kryo.register(CreateLobby.class);
         kryo.register(LobbyCreated.class);
+        kryo.register(LobbyCreateFailed.class);
         kryo.register(RequestAllLobbies.class);
         kryo.register(AllLobbiesInfo.class);
         kryo.register(LobbyListItem.class);
@@ -260,6 +266,19 @@ public class Network {
         }
     }
 
+    /**
+     * Sent by server when an NPC performs an attack.
+     */
+    public static class NpcAttack {
+        public int npcId;
+
+        public NpcAttack() {}
+
+        public NpcAttack(int npcId) {
+            this.npcId = npcId;
+        }
+    }
+
     public static class ShootRequest {
         public float targetX;
         public float targetY;
@@ -315,6 +334,42 @@ public class Network {
 
         public CorpseStateUpdate() {
             corpses = new java.util.ArrayList<>();
+        }
+    }
+
+    public static class OrbState {
+        public int orbId;
+        /** Center position in world coordinates. */
+        public float x;
+        public float y;
+        /** Collision/pickup radius in world coordinates. */
+        public float radius;
+
+        public OrbState() {}
+    }
+
+    public static class OrbStateUpdate {
+        public int lobbyId;
+        public long tick;
+        public java.util.ArrayList<OrbState> orbs;
+
+        public OrbStateUpdate() {
+            orbs = new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Sent by server when player's session orb count changes.
+     */
+    public static class SessionOrbCountUpdate {
+        public int clientId;
+        public int orbCount;
+
+        public SessionOrbCountUpdate() {}
+
+        public SessionOrbCountUpdate(int clientId, int orbCount) {
+            this.clientId = clientId;
+            this.orbCount = orbCount;
         }
     }
 
@@ -383,6 +438,19 @@ public class Network {
         public LobbyCreated(int lobbyId, String lobbyName) {
             this.lobbyId = lobbyId;
             this.lobbyName = lobbyName;
+        }
+    }
+
+    /**
+     * Sent by server when lobby creation fails.
+     */
+    public static class LobbyCreateFailed {
+        public String reason;
+
+        public LobbyCreateFailed() {}
+
+        public LobbyCreateFailed(String reason) {
+            this.reason = reason;
         }
     }
 

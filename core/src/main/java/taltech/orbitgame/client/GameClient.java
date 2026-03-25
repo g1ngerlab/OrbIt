@@ -5,6 +5,7 @@ import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.network.Network.InputState;
+import taltech.orbitgame.network.NetworkConfig;
 
 import java.io.IOException;
 
@@ -12,6 +13,8 @@ public class GameClient {
     private Client client;
     private int clientId = -1;
     private int lobbyId = 1; // Default lobby
+    private final String playerName;
+    private final String serverHost;
     private GameClientListener gameListener;
 
     public interface GameClientListener {
@@ -21,26 +24,31 @@ public class GameClient {
         void onLobbyState(Network.LobbyState lobbyState);
         void onLobbyJoinConfirmed(float spawnX, float spawnY);
         void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate);
+        void onNpcAttack(Network.NpcAttack npcAttack);
         void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
         void onCorpseStateUpdate(Network.CorpseStateUpdate corpseStateUpdate);
+        void onOrbStateUpdate(Network.OrbStateUpdate orbStateUpdate);
+        void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate);
         /** Called when a player's health changes (used to sync health bars). */
         void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
         /** Called when a player or NPC dies and must be removed from the world. */
         void onEntityDied(Network.EntityDied entityDied);
     }
 
-    public GameClient(int lobbyId) {
+    public GameClient(int lobbyId, String playerName) {
         this.lobbyId = lobbyId;
+        this.playerName = sanitizeName(playerName);
+        this.serverHost = NetworkConfig.getServerHost();
         client = new Client();
         Network.register(client);
-        System.out.println("[Client] GameClient created for lobby " + lobbyId);
+        System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost + ", player=" + this.playerName);
 
         client.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
                 System.out.println("[Client] Connected to server. Sending login...");
                 Network.Login login = new Network.Login();
-                login.name = "Player";
+                login.name = GameClient.this.playerName;
                 client.sendTCP(login);
             }
 
@@ -96,6 +104,12 @@ public class GameClient {
                         gameListener.onNpcStateUpdate(update);
                     }
                 }
+                if (object instanceof Network.NpcAttack) {
+                    Network.NpcAttack attack = (Network.NpcAttack) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcAttack(attack);
+                    }
+                }
                 if (object instanceof Network.BulletStateUpdate) {
                     Network.BulletStateUpdate update = (Network.BulletStateUpdate) object;
                     if (gameListener != null) {
@@ -106,6 +120,18 @@ public class GameClient {
                     Network.CorpseStateUpdate update = (Network.CorpseStateUpdate) object;
                     if (gameListener != null) {
                         gameListener.onCorpseStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.OrbStateUpdate) {
+                    Network.OrbStateUpdate update = (Network.OrbStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onOrbStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.SessionOrbCountUpdate) {
+                    Network.SessionOrbCountUpdate update = (Network.SessionOrbCountUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onSessionOrbCountUpdate(update);
                     }
                 }
                 if (object instanceof Network.PlayerHealthUpdate) {
@@ -133,12 +159,17 @@ public class GameClient {
         this.gameListener = listener;
     }
 
+    public String getPlayerName() {
+        return playerName;
+    }
+
     public void connect() {
         client.start();
 
         new Thread(() -> {
             try {
-                client.connect(5000, "localhost", Network.PORT);
+                //client.connect(5000, serverHost, Network.PORT); // Use this for localhost testing
+                client.connect(5000, "193.40.157.153", 8080); //connect to TalTech server
             } catch (IOException e) {
                 System.err.println("[Client] Connection failed: " + e.getMessage());
             }
@@ -191,5 +222,16 @@ public class GameClient {
                 System.err.println("[GameClient] Error disconnecting: " + e.getMessage());
             }
         }
+    }
+
+    private String sanitizeName(String rawName) {
+        String normalized = rawName == null ? "" : rawName.trim();
+        if (normalized.isEmpty()) {
+            normalized = "Player";
+        }
+        if (normalized.length() > 16) {
+            normalized = normalized.substring(0, 16);
+        }
+        return normalized;
     }
 }

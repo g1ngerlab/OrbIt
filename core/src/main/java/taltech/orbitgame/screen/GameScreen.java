@@ -3,8 +3,6 @@ package taltech.orbitgame.screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import taltech.orbitgame.Main; // Add import
-
 import com.badlogic.gdx.graphics.GL20;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
@@ -12,6 +10,7 @@ import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
 import taltech.orbitgame.rendering.GameRenderer;
+import taltech.orbitgame.Main;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
@@ -20,22 +19,27 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Main game screen that handles input and renders the game
  */
 public class GameScreen implements Screen, GameClient.GameClientListener {
+    private static final ExecutorService MAP_LOAD_EXECUTOR = Executors.newSingleThreadExecutor();
 
     private final Main game;
     private final InputHandler inputHandler;
     private final GameClient gameClient;
-    private final MapManager map;
+    private MapManager map;
     private final Player player;
     private final NpcManager npcManager;
     private final Map<Integer, Network.CorpseState> corpses;
+    private final Map<Integer, Network.OrbState> orbs;
 
     // Refactored components
-    private final PlayerController playerController;
+    private PlayerController playerController;
     private final GameRenderer gameRenderer;
 
     private final Map<Integer, RemotePlayer> remotePlayers;
@@ -44,6 +48,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private boolean isPaused = false;
     private boolean loggedEmptyNpcSnapshot = false;
     private boolean disposed = false;
+    private int sessionOrbCount = 0;
+    private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
+    private Throwable mapLoadError;
+    private final long mapLoadStartedAtMs;
 
     public GameScreen(Main game, GameClient gameClient) {
         this.game = game;
@@ -52,22 +60,22 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         this.inputHandler = new InputHandler();
         Gdx.input.setInputProcessor(this.inputHandler);
 
-        this.map = new MapManager();
         this.player = new Player();
+        this.player.setPlayerName(gameClient.getPlayerName());
         this.remotePlayers = new HashMap<>();
 
         // NPCs are now created and simulated only on server
         this.npcManager = new NpcManager();
         this.corpses = new HashMap<>();
+        this.orbs = new HashMap<>();
 
         // Initialize renderer
         this.gameRenderer = new GameRenderer();
 
-        // Initialize refactored components
-        float speed = 120f;
-        this.playerController = new PlayerController(player, inputHandler, gameClient, map, gameRenderer.getCameraController().getCamera(), speed);
+        this.mapLoadStartedAtMs = System.currentTimeMillis();
+        this.mapLoadFuture = CompletableFuture.supplyAsync(MapManager::loadData, MAP_LOAD_EXECUTOR);
 
-        System.out.println("[GameScreen] Screen initialized, waiting for connection...");
+        System.out.println("[GameScreen] Screen initialized, map loading in background...");
     }
 
     @Override
@@ -86,6 +94,13 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         Gdx.gl.glClearColor(0, 0, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+        completeMapLoadingIfReady();
+
+        if (mapLoadError != null) {
+            System.err.println("[GameScreen] Map load failed: " + mapLoadError.getMessage());
+            gameRenderer.renderStatus("Map load failed. Check logs.");
+            return;
+        }
 
         // Handle ESC key to open menu
         if (!isPaused && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
@@ -96,19 +111,20 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         }
 
         // Update player and game state if not paused and connected
-        if (!isPaused && isInLobby) {
+        if (!isPaused && isInLobby && playerController != null) {
             playerController.update(delta, isInLobby);
 
             for (RemotePlayer remotePlayer : remotePlayers.values()) {
-                remotePlayer.update(delta, false);
+                remotePlayer.update(delta);
             }
         }
 
         // Delegate rendering to GameRenderer
+        gameRenderer.setOrbHudState(orbs, sessionOrbCount);
         gameRenderer.render(delta, isInLobby, player, remotePlayers, map, npcManager, corpses, playerController);
 
         // Send updates to server if not paused and connected
-        if (!isPaused && isInLobby) {
+        if (!isPaused && isInLobby && playerController != null) {
             playerController.sendInputToServer(isInLobby);
             playerController.sendPositionUpdate(delta, isInLobby);
         }
@@ -150,7 +166,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         // Dispose resources
         try {
-            map.dispose();
+            if (map != null) {
+                map.dispose();
+            }
             player.dispose();
             npcManager.dispose();
             gameRenderer.dispose();
@@ -162,6 +180,34 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         }
 
         System.out.println("[GameScreen] Disposal complete");
+    }
+
+    private void completeMapLoadingIfReady() {
+        if (map != null || mapLoadFuture == null || !mapLoadFuture.isDone()) {
+            return;
+        }
+
+        try {
+            MapManager.LoadedMapData loadedData = mapLoadFuture.get();
+            this.map = new MapManager(loadedData);
+            float speed = 120f;
+            this.playerController = new PlayerController(
+                player,
+                inputHandler,
+                gameClient,
+                map,
+                gameRenderer.getCameraController().getCamera(),
+                speed
+            );
+            System.out.println("[GameScreen] Map ready. Collision grid=" + map.getCollisionGridSize()
+                + ", render chunks=" + map.getRenderChunkCount()
+                + ", total async load=" + (System.currentTimeMillis() - mapLoadStartedAtMs) + " ms");
+        } catch (Exception e) {
+            mapLoadError = e;
+            e.printStackTrace();
+        } finally {
+            mapLoadFuture = null;
+        }
     }
 
     // GameClientListener callbacks
@@ -220,7 +266,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             System.out.println("[GameScreen] Lobby join confirmed! Spawning player at (" + spawnX + ", " + spawnY + ")");
             player.x = spawnX;
             player.y = spawnY;
-            playerController.resetAim();
+            if (playerController != null) {
+                playerController.resetAim();
+            }
             isInLobby = true;
         });
     }
@@ -238,6 +286,11 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             npcManager.applySnapshot(npcStateUpdate.npcs);
         });
+    }
+
+    @Override
+    public void onNpcAttack(Network.NpcAttack npcAttack) {
+        Gdx.app.postRunnable(() -> npcManager.onNpcAttack(npcAttack.npcId));
     }
 
     @Override
@@ -261,6 +314,28 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             for (Network.CorpseState state : corpseStateUpdate.corpses) {
                 corpses.put(state.corpseId, state);
+            }
+        });
+    }
+
+    @Override
+    public void onOrbStateUpdate(Network.OrbStateUpdate orbStateUpdate) {
+        Gdx.app.postRunnable(() -> {
+            orbs.clear();
+            if (orbStateUpdate.orbs == null) {
+                return;
+            }
+            for (Network.OrbState state : orbStateUpdate.orbs) {
+                orbs.put(state.orbId, state);
+            }
+        });
+    }
+
+    @Override
+    public void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate) {
+        Gdx.app.postRunnable(() -> {
+            if (countUpdate.clientId == gameClient.getClientId()) {
+                sessionOrbCount = Math.max(0, countUpdate.orbCount);
             }
         });
     }

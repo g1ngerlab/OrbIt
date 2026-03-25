@@ -4,6 +4,7 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import taltech.orbitgame.network.Network;
+import taltech.orbitgame.network.NetworkConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -15,9 +16,17 @@ import java.util.Map;
  * Lightweight client for querying lobby information without joining
  */
 public class LobbyInfoClient {
+    private static final int CONNECT_TIMEOUT_MS = 2000;
+    private static final long RETRY_DELAY_MS = 1000L;
+
     private final Client client;
+    private final String serverHost;
     private Map<Integer, Integer> lobbyPlayerCounts;
     private volatile boolean connected = false;
+    private volatile boolean connectLoopRunning;
+    private volatile String lastConnectionError;
+    private volatile int retryAttempt;
+    private Thread connectThread;
     private LobbyInfoListener listener;
     private LobbyCreatedListener lobbyCreatedListener;
     private AllLobbiesListener allLobbiesListener;
@@ -38,13 +47,16 @@ public class LobbyInfoClient {
     public LobbyInfoClient() {
         lobbyPlayerCounts = new HashMap<>();
         client = new Client();
+        serverHost = NetworkConfig.getServerHost();
         Network.register(client);
 
         client.addListener(new Listener() {
             @Override
             public void connected(Connection connection) {
                 connected = true;
-                System.out.println("[LobbyInfoClient] Connected to server");
+                retryAttempt = 0;
+                lastConnectionError = null;
+                System.out.println("[LobbyInfoClient] Connected to server " + serverHost);
                 requestLobbyInfo();
             }
 
@@ -65,6 +77,13 @@ public class LobbyInfoClient {
                     System.out.println("[LobbyInfoClient] Lobby created: " + created.lobbyId + " - " + created.lobbyName);
                     if (lobbyCreatedListener != null) {
                         lobbyCreatedListener.onLobbyCreated(created.lobbyId, created.lobbyName);
+                    }
+                }
+                if (object instanceof Network.LobbyCreateFailed) {
+                    Network.LobbyCreateFailed failed = (Network.LobbyCreateFailed) object;
+                    System.out.println("[LobbyInfoClient] Lobby creation failed: " + failed.reason);
+                    if (lobbyCreatedListener != null) {
+                        lobbyCreatedListener.onLobbyCreateFailed(failed.reason);
                     }
                 }
                 if (object instanceof Network.AllLobbiesInfo) {
@@ -100,16 +119,54 @@ public class LobbyInfoClient {
     }
 
     public void connect() {
-        if (!connected && !client.isConnected()) {
-            client.start();
-            new Thread(() -> {
-                try {
-                    client.connect(5000, "localhost", Network.PORT);
-                } catch (IOException e) {
-                    System.err.println("[LobbyInfoClient] Connection failed: " + e.getMessage());
-                }
-            }, "LobbyInfoClient-Connect").start();
+        if (connectLoopRunning) {
+            return;
         }
+
+        connectLoopRunning = true;
+        if (connectThread == null || !connectThread.isAlive()) {
+            client.start();
+            connectThread = new Thread(() -> {
+                while (connectLoopRunning && !Thread.currentThread().isInterrupted()) {
+                    if (client.isConnected()) {
+                        sleepQuietly(300L);
+                        continue;
+                    }
+
+                    retryAttempt++;
+                    try {
+                        System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to " + serverHost);
+                        client.connect(CONNECT_TIMEOUT_MS, "193.40.157.153", 8080); //connect to TalTech server
+                        //client.connect(CONNECT_TIMEOUT_MS, serverHost, Network.PORT); //connect to local server
+                    } catch (IOException e) {
+                        lastConnectionError = e.getMessage();
+                        System.err.println("[LobbyInfoClient] Connection failed: " + e.getMessage());
+                        sleepQuietly(RETRY_DELAY_MS);
+                    }
+                }
+            }, "LobbyInfoClient-Connect");
+            connectThread.start();
+        }
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public String getConnectionStatusMessage() {
+        if (isConnected()) {
+            return "Connected";
+        }
+
+        if (retryAttempt <= 1 || lastConnectionError == null || lastConnectionError.isEmpty()) {
+            return "Connecting to server";
+        }
+
+        return "Server not ready, retrying";
     }
 
     public void requestLobbyInfo() {
@@ -147,8 +204,11 @@ public class LobbyInfoClient {
     }
 
     public void disconnect() {
-        if (client != null) {
-            client.close();
+        connectLoopRunning = false;
+        if (connectThread != null) {
+            connectThread.interrupt();
+            connectThread = null;
         }
+        client.close();
     }
 }

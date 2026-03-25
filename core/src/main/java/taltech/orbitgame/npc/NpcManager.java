@@ -133,4 +133,11 @@ public class NpcManager {
     public List<Npc> getNpcs() {
         return new ArrayList<>(npcs.values());
     }
+
+    public void onNpcAttack(int npcId) {
+        Npc npc = npcs.get(npcId);
+        if (npc != null) {
+            npc.onAttack();
+        }
+    }
 }
