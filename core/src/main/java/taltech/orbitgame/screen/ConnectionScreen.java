@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.Texture;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
@@ -37,6 +38,8 @@ public class ConnectionScreen implements Screen {
     @Override
     public void show() {
         System.out.println("[ConnectionScreen] Starting connection to server...");
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
         lobbyInfoClient = new LobbyInfoClient();
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
     }
