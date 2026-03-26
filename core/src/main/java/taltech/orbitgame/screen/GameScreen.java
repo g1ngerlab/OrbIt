@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.network.Network;
@@ -59,6 +60,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         this.gameClient.setGameListener(this);
         this.inputHandler = new InputHandler();
         Gdx.input.setInputProcessor(this.inputHandler);
+
+        // Stop lobby music and start game session music
+        AudioManager.getInstance().playRandomGameSessionMusic();
 
         this.player = new Player();
         this.player.setPlayerName(gameClient.getPlayerName());

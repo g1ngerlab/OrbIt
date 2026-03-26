@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
@@ -40,6 +41,9 @@ public class LobbyChoiceScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
 

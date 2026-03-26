@@ -24,6 +24,7 @@ import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.audio.AudioManager;
 
 import java.util.List;
 
@@ -53,6 +54,9 @@ public class JoinLobbyScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
 

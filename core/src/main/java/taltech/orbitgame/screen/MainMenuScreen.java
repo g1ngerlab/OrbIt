@@ -20,7 +20,7 @@ import taltech.orbitgame.Main;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
-
+import taltech.orbitgame.audio.AudioManager;
 /**
  * Main menu screen with Play, Settings, and Leave buttons
  */
@@ -48,6 +48,9 @@ public class MainMenuScreen implements Screen {
         batch = new SpriteBatch();
         stage = new Stage(new ScreenViewport());
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         // Load assets
         spaceBackground = new Texture(Gdx.files.internal("LobbyBg.png"));

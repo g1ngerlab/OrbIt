@@ -22,6 +22,7 @@ import taltech.orbitgame.auth.SupabaseAuthService;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.audio.AudioManager;
 
 /**
  * Login/registration screen shown before the main menu.
@@ -68,6 +69,9 @@ public class AuthScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
         buttonTexture = new Texture(Gdx.files.internal("Buttons/button.png"));

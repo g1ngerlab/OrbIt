@@ -1,6 +1,7 @@
 package taltech.orbitgame;
 
 import com.badlogic.gdx.Game;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.screen.ConnectionScreen;
 
 /**
@@ -13,5 +14,12 @@ public class Main extends Game {
     public void create() {
         // Start with connection screen to connect to server
         setScreen(new ConnectionScreen(this));
+    }
+
+    @Override
+    public void dispose() {
+        super.dispose();
+        // Properly dispose audio resources
+        AudioManager.getInstance().dispose();
     }
 }

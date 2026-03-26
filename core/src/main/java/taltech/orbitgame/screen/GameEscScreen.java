@@ -14,6 +14,7 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.util.FontManager;
 
@@ -89,6 +90,9 @@ public class GameEscScreen implements Screen {
         // Use Gdx.app.postRunnable to ensure we're on the right thread
         Gdx.app.postRunnable(() -> {
             gameScreen.dispose(); // Disconnects and cleans up
+            // Switch back to lobby music (explicitly stop game music first)
+            AudioManager.getInstance().stopCurrentMusic();
+            AudioManager.getInstance().playRandomLobbyMusic();
             // Create a fresh LobbyInfoClient so lobby browsing works after returning
             game.setScreen(new MainMenuScreen(game, new LobbyInfoClient()));
         });

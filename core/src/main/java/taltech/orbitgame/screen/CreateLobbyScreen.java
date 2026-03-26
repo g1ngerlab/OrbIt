@@ -25,6 +25,7 @@ import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.audio.AudioManager;
 
 /**
  * Screen for creating a new lobby with a custom name
@@ -54,6 +55,9 @@ public class CreateLobbyScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
         Pixmap dimPixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
