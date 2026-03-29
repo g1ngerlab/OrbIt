@@ -33,6 +33,14 @@ public class GameClient {
         void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
         /** Called when a player or NPC dies and must be removed from the world. */
         void onEntityDied(Network.EntityDied entityDied);
+        /** Called when a player shoots. */
+        void onPlayerShoot(Network.PlayerShoot playerShoot);
+        /** Called when a player takes a step. */
+        void onPlayerStep(Network.PlayerStep playerStep);
+        /** Called when an NPC dies. */
+        void onNpcDeathSound(Network.NpcDeathSound npcDeathSound);
+        /** Called when an NPC hits a player. */
+        void onNpcHitSound(Network.NpcHitSound npcHitSound);
     }
 
     public GameClient(int lobbyId, String playerName) {
@@ -144,6 +152,30 @@ public class GameClient {
                     Network.EntityDied died = (Network.EntityDied) object;
                     if (gameListener != null) {
                         gameListener.onEntityDied(died);
+                    }
+                }
+                if (object instanceof Network.PlayerShoot) {
+                    Network.PlayerShoot playerShoot = (Network.PlayerShoot) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerShoot(playerShoot);
+                    }
+                }
+                if (object instanceof Network.PlayerStep) {
+                    Network.PlayerStep playerStep = (Network.PlayerStep) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerStep(playerStep);
+                    }
+                }
+                if (object instanceof Network.NpcDeathSound) {
+                    Network.NpcDeathSound npcDeathSound = (Network.NpcDeathSound) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcDeathSound(npcDeathSound);
+                    }
+                }
+                if (object instanceof Network.NpcHitSound) {
+                    Network.NpcHitSound npcHitSound = (Network.NpcHitSound) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcHitSound(npcHitSound);
                     }
                 }
             }

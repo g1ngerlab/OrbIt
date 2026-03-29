@@ -30,6 +30,10 @@ public class Network {
         kryo.register(NpcStateUpdate.class);
         kryo.register(NpcAttack.class);
         kryo.register(ShootRequest.class);
+        kryo.register(PlayerShoot.class);
+        kryo.register(PlayerStep.class);
+        kryo.register(NpcDeathSound.class);
+        kryo.register(NpcHitSound.class);
         kryo.register(BulletState.class);
         kryo.register(BulletStateUpdate.class);
         kryo.register(CorpseState.class);
@@ -288,6 +292,82 @@ public class Network {
         public ShootRequest(float targetX, float targetY) {
             this.targetX = targetX;
             this.targetY = targetY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when a player shoots.
+     * Used to play sound effects on the client side.
+     */
+    public static class PlayerShoot {
+        public int clientId;
+        public String playerName;
+        public float shooterX;
+        public float shooterY;
+
+        public PlayerShoot() {}
+
+        public PlayerShoot(int clientId, String playerName, float shooterX, float shooterY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.shooterX = shooterX;
+            this.shooterY = shooterY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when a player takes a step.
+     * Used to play footstep sound effects on the client side.
+     */
+    public static class PlayerStep {
+        public int clientId;
+        public String playerName;
+        public float playerX;
+        public float playerY;
+
+        public PlayerStep() {}
+
+        public PlayerStep(int clientId, String playerName, float playerX, float playerY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.playerX = playerX;
+            this.playerY = playerY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when an NPC dies.
+     * Used to play death sound effects on the client side.
+     */
+    public static class NpcDeathSound {
+        public int npcId;
+        public float npcX;
+        public float npcY;
+
+        public NpcDeathSound() {}
+
+        public NpcDeathSound(int npcId, float npcX, float npcY) {
+            this.npcId = npcId;
+            this.npcX = npcX;
+            this.npcY = npcY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when an NPC hits a player.
+     * Used to play impact sound effects on the client side.
+     */
+    public static class NpcHitSound {
+        public int npcId;
+        public float npcX;
+        public float npcY;
+
+        public NpcHitSound() {}
+
+        public NpcHitSound(int npcId, float npcX, float npcY) {
+            this.npcId = npcId;
+            this.npcX = npcX;
+            this.npcY = npcY;
         }
     }
 

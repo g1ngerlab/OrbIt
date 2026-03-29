@@ -339,6 +339,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate) {
         Gdx.app.postRunnable(() -> {
             if (countUpdate.clientId == gameClient.getClientId()) {
+                // Check if the player collected a new orb
+                if (countUpdate.orbCount > sessionOrbCount) {
+                    AudioManager.getInstance().playOrbPickup();
+                }
                 sessionOrbCount = Math.max(0, countUpdate.orbCount);
             }
         });
@@ -378,6 +382,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
                     // A remote player died - remove them from the world
                     RemotePlayer removed = remotePlayers.remove(entityDied.entityId);
                     if (removed != null) {
+                        // Play player death sound
+                        AudioManager.getInstance().playPlayerDeath(removed.x, removed.y,
+                                                                    player.getCenterX(), player.getCenterY());
                         removed.dispose();
                         System.out.println("[GameScreen] Remote player #" + entityDied.entityId + " died and was removed.");
                     }
@@ -388,6 +395,62 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     public void setPaused(boolean paused) {
         this.isPaused = paused;
+    }
+
+    @Override
+    public void onPlayerShoot(Network.PlayerShoot playerShoot) {
+        Gdx.app.postRunnable(() -> {
+            if (playerShoot.clientId == gameClient.getClientId()) {
+                // Own shot - play at full volume (this is handled in PlayerController)
+                return;
+            }
+            // Other player's shot - play sound with distance attenuation
+            RemotePlayer shooter = remotePlayers.get(playerShoot.clientId);
+            float shooterX = playerShoot.shooterX;
+            float shooterY = playerShoot.shooterY;
+
+            if (shooter != null) {
+                shooterX = shooter.x;
+                shooterY = shooter.y;
+            }
+
+            AudioManager.getInstance().playShotgunShot(shooterX, shooterY,
+                                                       player.getCenterX(), player.getCenterY(), false);
+        });
+    }
+
+    @Override
+    public void onPlayerStep(Network.PlayerStep playerStep) {
+        Gdx.app.postRunnable(() -> {
+            RemotePlayer walker = remotePlayers.get(playerStep.clientId);
+            float walkerX = playerStep.playerX;
+            float walkerY = playerStep.playerY;
+
+            if (walker != null) {
+                walkerX = walker.x;
+                walkerY = walker.y;
+            }
+
+            boolean isOwnStep = (playerStep.clientId == gameClient.getClientId());
+            AudioManager.getInstance().playStep(walkerX, walkerY,
+                                                player.getCenterX(), player.getCenterY(), isOwnStep);
+        });
+    }
+
+    @Override
+    public void onNpcDeathSound(Network.NpcDeathSound npcDeathSound) {
+        Gdx.app.postRunnable(() -> {
+            AudioManager.getInstance().playNpcDeath(npcDeathSound.npcX, npcDeathSound.npcY,
+                                                     player.getCenterX(), player.getCenterY());
+        });
+    }
+
+    @Override
+    public void onNpcHitSound(Network.NpcHitSound npcHitSound) {
+        Gdx.app.postRunnable(() -> {
+            AudioManager.getInstance().playNpcHit(npcHitSound.npcX, npcHitSound.npcY,
+                                                   player.getCenterX(), player.getCenterY());
+        });
     }
 
     public boolean isDisposed() {

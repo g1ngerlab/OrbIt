@@ -4,6 +4,7 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.network.Network.InputState;
@@ -101,6 +102,9 @@ public class PlayerController {
         // Handle shooting
         if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && shotCooldownTimer <= 0f && isInLobby) {
             gameClient.sendShoot(localAimX, localAimY);
+            // Play shotgun sound for own shot at full volume
+            AudioManager.getInstance().playShotgunShot(player.getCenterX(), player.getCenterY(),
+                                                       player.getCenterX(), player.getCenterY(), true);
             shotCooldownTimer = SHOT_COOLDOWN;
         }
 
