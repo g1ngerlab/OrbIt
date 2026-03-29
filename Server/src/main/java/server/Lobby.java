@@ -158,12 +158,32 @@ public class Lobby {
             // Broadcast position update to all other players
             Network.PlayerPositionUpdate update = new Network.PlayerPositionUpdate(clientId, x, y, moving, aimX, aimY);
             broadcastToOthers(clientId, update);
+
+            // Send step sound if player is moving
+            if (moving) {
+                Network.PlayerStep stepSound = new Network.PlayerStep(clientId, player.getPlayerName(), x, y);
+                broadcastToOthers(clientId, stepSound);
+            }
         }
     }
 
     public void queueShootRequest(int clientId, float targetX, float targetY) {
         if (players.containsKey(clientId)) {
+            LobbyPlayer shooter = players.get(clientId);
+
+            // Queue the actual bullet
             pendingShots.offer(new PendingShot(clientId, targetX, targetY));
+
+            // Send sound event to all clients for audio playback
+            Network.PlayerShoot shootEvent = new Network.PlayerShoot(
+                clientId,
+                shooter.getPlayerName(),
+                shooter.getX(),
+                shooter.getY()
+            );
+            broadcastToAll(shootEvent);
+
+            LOGGER.fine(lobbyTag() + "Player " + shooter.getPlayerName() + " shot at (" + targetX + ", " + targetY + ")");
         }
     }
 
@@ -435,6 +455,16 @@ public class Lobby {
             + player.getPlayerName() + "! HP: " + player.getCurrentHealth() + "/" + player.getMaxHealth());
         broadcastPlayerHealth(player);
         broadcastNpcAttack();
+
+        // Send hit sound to all clients for audio playback
+        // Find the attacking NPC(s) and get their position
+        for (Npc npc : npcManager.getNpcs()) {
+            if (npc.isChasing() && Math.hypot(npc.getPosition().x - player.getX(), npc.getPosition().y - player.getY()) < 100f) {
+                Network.NpcHitSound hitSound = new Network.NpcHitSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
+                broadcastToAll(hitSound);
+                break; // Only one NPC hit at a time
+            }
+        }
     }
 
     private void onPlayerKilled(LobbyPlayer player, String reason) {
@@ -460,6 +490,10 @@ public class Lobby {
         addRobotButlerCorpse(npc);
         spawnOrbsAroundNpc(npc);
         broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
+
+        // Send death sound to all clients for audio playback
+        Network.NpcDeathSound deathSound = new Network.NpcDeathSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
+        broadcastToAll(deathSound);
     }
 
     private void spawnOrbsAroundNpc(Npc npc) {
