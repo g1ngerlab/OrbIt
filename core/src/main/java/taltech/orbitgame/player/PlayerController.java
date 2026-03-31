@@ -31,6 +31,7 @@ public class PlayerController {
     private float localAimY;
     private float shotCooldownTimer = 0f;
     private float timeSinceLastUpdate = 0f;
+    private boolean shootingBlocked = false;
 
     private final Vector3 mouseScreen;
     private final Vector3 mouseWorld;
@@ -100,7 +101,10 @@ public class PlayerController {
         }
 
         // Handle shooting
-        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && shotCooldownTimer <= 0f && isInLobby) {
+        if (!shootingBlocked
+            && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
+            && shotCooldownTimer <= 0f
+            && isInLobby) {
             gameClient.sendShoot(localAimX, localAimY);
             // Play shotgun sound for own shot at full volume
             AudioManager.getInstance().playShotgunShot(player.getCenterX(), player.getCenterY(),
@@ -177,5 +181,9 @@ public class PlayerController {
 
     public float getLocalAimY() {
         return localAimY;
+    }
+
+    public void setShootingBlocked(boolean blocked) {
+        this.shootingBlocked = blocked;
     }
 }

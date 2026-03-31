@@ -21,6 +21,7 @@ public class LobbyInfoClient {
 
     private final Client client;
     private final String serverHost;
+    private final int serverPort;
     private Map<Integer, Integer> lobbyPlayerCounts;
     private volatile boolean connected = false;
     private volatile boolean connectLoopRunning;
@@ -48,6 +49,7 @@ public class LobbyInfoClient {
         lobbyPlayerCounts = new HashMap<>();
         client = new Client();
         serverHost = NetworkConfig.getServerHost();
+        serverPort = NetworkConfig.getServerPort();
         Network.register(client);
 
         client.addListener(new Listener() {
@@ -56,7 +58,7 @@ public class LobbyInfoClient {
                 connected = true;
                 retryAttempt = 0;
                 lastConnectionError = null;
-                System.out.println("[LobbyInfoClient] Connected to server " + serverHost);
+                System.out.println("[LobbyInfoClient] Connected to server " + serverHost + ":" + serverPort);
                 requestLobbyInfo();
             }
 
@@ -135,9 +137,9 @@ public class LobbyInfoClient {
 
                     retryAttempt++;
                     try {
-                        System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to " + serverHost);
-                        client.connect(CONNECT_TIMEOUT_MS, "193.40.157.153", 8080); //connect to TalTech server
-                        //client.connect(CONNECT_TIMEOUT_MS, serverHost, Network.PORT); //connect to local server
+                        System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to "
+                            + serverHost + ":" + serverPort);
+                        client.connect(CONNECT_TIMEOUT_MS, serverHost, serverPort);
                     } catch (IOException e) {
                         lastConnectionError = e.getMessage();
                         System.err.println("[LobbyInfoClient] Connection failed: " + e.getMessage());

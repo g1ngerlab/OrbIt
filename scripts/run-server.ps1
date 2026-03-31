@@ -1,4 +1,5 @@
 param(
+    [int]$ServerPort,
     [switch]$NoDaemon,
     [switch]$PlainConsole
 )
@@ -10,6 +11,10 @@ $wrapperJar = Join-Path $repoRoot "gradle\wrapper\gradle-wrapper.jar"
 
 if (-not (Test-Path $wrapperJar)) {
     throw "Gradle wrapper jar not found: $wrapperJar"
+}
+
+if ($ServerPort -gt 0) {
+    $env:ORBIT_SERVER_PORT = [string]$ServerPort
 }
 
 $arguments = @("-classpath", $wrapperJar, "org.gradle.wrapper.GradleWrapperMain")

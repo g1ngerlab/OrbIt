@@ -2,6 +2,7 @@ package taltech.orbitgame.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import taltech.orbitgame.item.ItemKind;
 
 // This class will be shared by both the client and server.
 public class Network {
@@ -40,7 +41,10 @@ public class Network {
         kryo.register(CorpseStateUpdate.class);
         kryo.register(OrbState.class);
         kryo.register(OrbStateUpdate.class);
-        kryo.register(SessionOrbCountUpdate.class);
+        kryo.register(InventorySlotState.class);
+        kryo.register(InventoryStateUpdate.class);
+        kryo.register(DropItemRequest.class);
+        kryo.register(MoveInventoryItemRequest.class);
         kryo.register(PlayerHealthUpdate.class);
         kryo.register(EntityDied.class);
         kryo.register(CreateLobby.class);
@@ -438,18 +442,68 @@ public class Network {
         }
     }
 
+    public static class InventorySlotState {
+        public int itemType;
+        public int amount;
+
+        public InventorySlotState() {}
+
+        public InventorySlotState(int itemType, int amount) {
+            this.itemType = itemType;
+            this.amount = amount;
+        }
+    }
+
     /**
-     * Sent by server when player's session orb count changes.
+     * Sent by server to the owner player when inventory state changes.
      */
-    public static class SessionOrbCountUpdate {
+    public static class InventoryStateUpdate {
         public int clientId;
-        public int orbCount;
+        public java.util.ArrayList<InventorySlotState> slots;
 
-        public SessionOrbCountUpdate() {}
+        public InventoryStateUpdate() {
+            slots = new java.util.ArrayList<>();
+        }
 
-        public SessionOrbCountUpdate(int clientId, int orbCount) {
+        public InventoryStateUpdate(int clientId) {
             this.clientId = clientId;
-            this.orbCount = orbCount;
+            this.slots = new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Sent by client to drop one item from the selected inventory slot.
+     */
+    public static class DropItemRequest {
+        public int slotIndex;
+
+        public DropItemRequest() {}
+
+        public DropItemRequest(int slotIndex) {
+            this.slotIndex = slotIndex;
+        }
+    }
+
+    /**
+     * Sent by client to move/merge/swap items between inventory slots.
+     */
+    public static class MoveInventoryItemRequest {
+        public int fromSlotIndex;
+        public int toSlotIndex;
+
+        public MoveInventoryItemRequest() {}
+
+        public MoveInventoryItemRequest(int fromSlotIndex, int toSlotIndex) {
+            this.fromSlotIndex = fromSlotIndex;
+            this.toSlotIndex = toSlotIndex;
+        }
+    }
+
+    public static final class ItemType {
+        public static final int NONE = ItemKind.NONE.getId();
+        public static final int ORB = ItemKind.ORB.getId();
+
+        private ItemType() {
         }
     }
 

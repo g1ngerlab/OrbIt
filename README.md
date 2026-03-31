@@ -30,13 +30,10 @@ This project is a **monorepo** containing both the Server and Client components.
 
 #### Connection Configuration
 
-By default, the game may be configured to connect to the remote server. If you want to run the server locally, you must update the connection information in the following classes:
+Connection is configured with environment variables (no code changes needed):
 
-- **core/src/main/java/taltech/orbitgame/client/GameClient.java** uncomment line 171 and comment line 172 to switch to local server connection.
-- **core/src/main/java/taltech/orbitgame/client/LobbyInfoClient.java** uncomment line 140 and comment line 139 to switch to local server connection.
-- **core/src/main/java/taltech/orbitgame/network/Network.java** uncomment line 8 and comment line 9 to switch to local server connection.
-
-Ensure these are set to `localhost` (or `127.0.0.1`) and the correct port (default `54555`) when running locally.
+- `ORBIT_SERVER_HOST` (default: `localhost`)
+- `ORBIT_SERVER_PORT` (default: `54555`)
 
 #### Prerequisites:
 - **Java 21** (JDK 21 or higher)
@@ -54,9 +51,17 @@ cd IdeaProjects/iti0301-2026 (replace with your actual path if different)
 ```
 
 #### 2. Start the Server (For Local Play only):
-If you are running the game locally (watch connection and configuration), you need to start your own server instance. Open a terminal in the project root directory and run:
+If you are running the game locally, start your own server instance.
+
+Windows PowerShell:
 ```powershell
 .\scripts\run-server.ps1
+```
+
+Linux/macOS:
+```bash
+chmod +x ./scripts/run-server.sh
+./scripts/run-server.sh
 ```
 
 **Note:** The server must be started and listening first before launching any clients for local play. The server will listen for client connections on the default port.
@@ -65,8 +70,16 @@ If you are running the game locally (watch connection and configuration), you ne
 
 #### 3. Start the Client:
 Open a **new separate terminal window** in the same project directory and run:
+
+Windows PowerShell:
 ```powershell
 .\scripts\run-client.ps1
+```
+
+Linux/macOS:
+```bash
+chmod +x ./scripts/run-client.sh
+./scripts/run-client.sh
 ```
 
 **Note:** The client will automatically attempt to connect to the configured server (localhost or remote).
@@ -78,7 +91,7 @@ To test multiplayer functionality, open additional terminal windows and repeat s
 
 ```powershell
 # Terminal 1: Server
-.\scripts\run-server.ps1 //only run this if you configured and want to start server locally to start the server (watch connection and configuration
+.\scripts\run-server.ps1
 
 # Terminal 2: Client 1
 .\scripts\run-client.ps1
@@ -88,6 +101,17 @@ To test multiplayer functionality, open additional terminal windows and repeat s
 
 # Terminal 4: Client 3 (and so on...)
 .\scripts\run-client.ps1
+```
+
+```bash
+# Terminal 1: Server
+./scripts/run-server.sh
+
+# Terminal 2: Client 1
+./scripts/run-client.sh
+
+# Terminal 3: Client 2
+./scripts/run-client.sh
 ```
 
 ### Troubleshooting:
@@ -128,10 +152,15 @@ To test multiplayer functionality, open additional terminal windows and repeat s
 
 ## Connection Information
 
-### Playing on TalTech Server:
-The game comes pre-configured to connect to the TalTech server.
-- **Server IP**: `193.40.157.153`
-- **Port**: `8080`
+To connect to a non-local server, set env vars before running client/server scripts:
 
-Simply clone the repository and run the client script. No additional configuration is needed unless you want to run a local server for development.
+```powershell
+$env:ORBIT_SERVER_HOST = "example.server.ip"
+$env:ORBIT_SERVER_PORT = "54555"
+```
+
+```bash
+export ORBIT_SERVER_HOST="example.server.ip"
+export ORBIT_SERVER_PORT="54555"
+```
 

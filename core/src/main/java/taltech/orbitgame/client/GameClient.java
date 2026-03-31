@@ -15,6 +15,7 @@ public class GameClient {
     private int lobbyId = 1; // Default lobby
     private final String playerName;
     private final String serverHost;
+    private final int serverPort;
     private GameClientListener gameListener;
 
     public interface GameClientListener {
@@ -28,7 +29,7 @@ public class GameClient {
         void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
         void onCorpseStateUpdate(Network.CorpseStateUpdate corpseStateUpdate);
         void onOrbStateUpdate(Network.OrbStateUpdate orbStateUpdate);
-        void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate);
+        void onInventoryStateUpdate(Network.InventoryStateUpdate inventoryUpdate);
         /** Called when a player's health changes (used to sync health bars). */
         void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
         /** Called when a player or NPC dies and must be removed from the world. */
@@ -47,9 +48,11 @@ public class GameClient {
         this.lobbyId = lobbyId;
         this.playerName = sanitizeName(playerName);
         this.serverHost = NetworkConfig.getServerHost();
+        this.serverPort = NetworkConfig.getServerPort();
         client = new Client();
         Network.register(client);
-        System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost + ", player=" + this.playerName);
+        System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost
+            + ", port=" + serverPort + ", player=" + this.playerName);
 
         client.addListener(new Listener() {
             @Override
@@ -136,10 +139,10 @@ public class GameClient {
                         gameListener.onOrbStateUpdate(update);
                     }
                 }
-                if (object instanceof Network.SessionOrbCountUpdate) {
-                    Network.SessionOrbCountUpdate update = (Network.SessionOrbCountUpdate) object;
+                if (object instanceof Network.InventoryStateUpdate) {
+                    Network.InventoryStateUpdate update = (Network.InventoryStateUpdate) object;
                     if (gameListener != null) {
-                        gameListener.onSessionOrbCountUpdate(update);
+                        gameListener.onInventoryStateUpdate(update);
                     }
                 }
                 if (object instanceof Network.PlayerHealthUpdate) {
@@ -200,8 +203,7 @@ public class GameClient {
 
         new Thread(() -> {
             try {
-                //client.connect(5000, serverHost, Network.PORT); // Use this for localhost testing
-                client.connect(5000, "193.40.157.153", 8080); //connect to TalTech server
+                client.connect(5000, serverHost, serverPort);
             } catch (IOException e) {
                 System.err.println("[Client] Connection failed: " + e.getMessage());
             }
@@ -224,6 +226,18 @@ public class GameClient {
     public void sendShoot(float targetX, float targetY) {
         if (client.isConnected() && clientId != -1) {
             client.sendTCP(new Network.ShootRequest(targetX, targetY));
+        }
+    }
+
+    public void sendDropItem(int slotIndex) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.DropItemRequest(slotIndex));
+        }
+    }
+
+    public void sendMoveInventoryItem(int fromSlotIndex, int toSlotIndex) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.MoveInventoryItemRequest(fromSlotIndex, toSlotIndex));
         }
     }
 
