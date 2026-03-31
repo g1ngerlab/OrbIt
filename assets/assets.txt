@@ -1,9 +1,16 @@
 Buttons/button.png
 Buttons/buttonPressed.png
 Buttons/orb.png
+GameSeshMusic/Knife Party - 'Bonfire'-419194644.mp3
+GameSeshMusic/NOISE MOTHER-233127447.mp3
+GameSeshMusic/SHOPLIFTERS-1869278771.mp3
 LobbyBg.png
+LobbyMusic/Cyberia lyr2-132369550.mp3
+LobbyMusic/I Need To Feel Loved-1935759142.mp3
+LobbyMusic/joon-1493758854.mp3
 MainMenuAssets/orbit.png
 Space Background Laptop.gif
+UI/inventory_border.png
 fonts/PixelifySans-VariableFont_wght.ttf
 guns/crosshair.png
 guns/test_bullet.png
@@ -18,6 +25,12 @@ player/run_down.png
 player/run_side.png
 player/run_up.png
 player/without_run.png
+sounds/death.mp3
+sounds/hit.mp3
+sounds/npc_death.mp3
+sounds/orb.mp3
+sounds/shotgun.mp3
+sounds/step.mp3
 tiles/Buildings_Colour2.png
 tiles/TX Plant with Shadow.png
 tiles/TX Plant.png

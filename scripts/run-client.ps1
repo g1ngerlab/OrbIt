@@ -1,5 +1,6 @@
 param(
     [string]$ServerHost,
+    [int]$ServerPort,
     [switch]$NoDaemon,
     [switch]$PlainConsole
 )
@@ -15,6 +16,10 @@ if (-not (Test-Path $wrapperJar)) {
 
 if ($ServerHost) {
     $env:ORBIT_SERVER_HOST = $ServerHost
+}
+
+if ($ServerPort -gt 0) {
+    $env:ORBIT_SERVER_PORT = [string]$ServerPort
 }
 
 $arguments = @("-classpath", $wrapperJar, "org.gradle.wrapper.GradleWrapperMain")

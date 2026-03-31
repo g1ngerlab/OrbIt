@@ -7,6 +7,8 @@ import com.badlogic.gdx.graphics.GL20;
 import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
+import taltech.orbitgame.inventory.InventoryFeature;
+import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
@@ -49,7 +51,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private boolean isPaused = false;
     private boolean loggedEmptyNpcSnapshot = false;
     private boolean disposed = false;
-    private int sessionOrbCount = 0;
+    private final InventoryFeature inventoryFeature;
     private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
     private Throwable mapLoadError;
     private final long mapLoadStartedAtMs;
@@ -75,6 +77,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         // Initialize renderer
         this.gameRenderer = new GameRenderer();
+        this.inventoryFeature = new InventoryFeature();
 
         this.mapLoadStartedAtMs = System.currentTimeMillis();
         this.mapLoadFuture = CompletableFuture.supplyAsync(MapManager::loadData, MAP_LOAD_EXECUTOR);
@@ -114,8 +117,22 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             return;
         }
 
+        // Handle inventory input before gameplay input to avoid click-through actions.
+        inventoryFeature.handleInput(
+            isInLobby,
+            isPaused,
+            gameRenderer::getInventorySlotAtScreenPosition,
+            gameClient::sendDropItem,
+            gameClient::sendMoveInventoryItem
+        );
+
         // Update player and game state if not paused and connected
         if (!isPaused && isInLobby && playerController != null) {
+            boolean cursorInsideInventory = gameRenderer.isInventoryScreenPositionInside(
+                Gdx.input.getX(),
+                Gdx.input.getY()
+            );
+            playerController.setShootingBlocked(cursorInsideInventory);
             playerController.update(delta, isInLobby);
 
             for (RemotePlayer remotePlayer : remotePlayers.values()) {
@@ -124,7 +141,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         }
 
         // Delegate rendering to GameRenderer
-        gameRenderer.setOrbHudState(orbs, sessionOrbCount);
+
+        gameRenderer.setOrbHudState(orbs);
+        gameRenderer.setInventoryState(inventoryFeature.getState());
         gameRenderer.render(delta, isInLobby, player, remotePlayers, map, npcManager, corpses, playerController);
 
         // Send updates to server if not paused and connected
@@ -336,14 +355,15 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     }
 
     @Override
-    public void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate) {
+    public void onInventoryStateUpdate(Network.InventoryStateUpdate inventoryUpdate) {
         Gdx.app.postRunnable(() -> {
-            if (countUpdate.clientId == gameClient.getClientId()) {
-                // Check if the player collected a new orb
-                if (countUpdate.orbCount > sessionOrbCount) {
-                    AudioManager.getInstance().playOrbPickup();
-                }
-                sessionOrbCount = Math.max(0, countUpdate.orbCount);
+            int pickedUp = inventoryFeature.applyNetworkUpdateForItemType(
+                inventoryUpdate,
+                gameClient.getClientId(),
+                ItemKind.ORB.getId()
+            );
+            if (pickedUp > 0) {
+                AudioManager.getInstance().playOrbPickup();
             }
         });
     }

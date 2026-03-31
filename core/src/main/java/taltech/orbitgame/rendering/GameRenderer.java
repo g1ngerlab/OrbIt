@@ -9,6 +9,8 @@ import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.math.MathUtils;
 import taltech.orbitgame.camera.CameraController;
+import taltech.orbitgame.inventory.InventoryHudRenderer;
+import taltech.orbitgame.inventory.InventoryState;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
@@ -38,6 +40,7 @@ public class GameRenderer {
     private final BitmapFont hudFont;
     private final GlyphLayout layout;
     private final Texture orbTexture;
+    private final InventoryHudRenderer inventoryHudRenderer;
     private final OrthographicCamera hudCamera;
 
     private static final int CROSSHAIR_SCALE = 2;
@@ -50,12 +53,10 @@ public class GameRenderer {
     private static final float ORB_DROP_HOP_DURATION = 1.25f;
     private static final float ORB_DROP_HOP_HEIGHT = 14f;
     private static final float ORB_LEVITATION_HEIGHT = 3.5f;
-    private static final float HUD_ORB_ICON_SIZE = 48f;
-
     private float orbAnimTime = 0f;
     private Map<Integer, Network.OrbState> currentOrbs = Collections.emptyMap();
-    private int currentSessionOrbCount = 0;
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
+    private InventoryState inventoryState;
 
     public GameRenderer() {
         this.batch = new SpriteBatch();
@@ -74,8 +75,10 @@ public class GameRenderer {
         this.hudFont = FontManager.getPixelFont(32);
         this.layout = new GlyphLayout();
         this.orbTexture = new Texture(Gdx.files.internal("loot/orb_v1.png"));
+        this.inventoryHudRenderer = new InventoryHudRenderer();
         this.hudCamera = new OrthographicCamera();
         this.hudCamera.setToOrtho(false, 800, 600);
+        this.inventoryState = new InventoryState();
     }
 
     public void render(float delta, boolean isInLobby, Player player, Map<Integer, RemotePlayer> remotePlayers,
@@ -136,19 +139,16 @@ public class GameRenderer {
 
         // Render health bars
         renderHealthBars(player, remotePlayers, npcManager);
-        renderHud(currentSessionOrbCount);
+        renderHud(delta);
     }
 
-    public void setOrbHudState(Map<Integer, Network.OrbState> orbs, int sessionOrbCount) {
+    public void setOrbHudState(Map<Integer, Network.OrbState> orbs) {
         this.currentOrbs = orbs == null ? Collections.emptyMap() : orbs;
-        this.currentSessionOrbCount = Math.max(0, sessionOrbCount);
 
         Set<Integer> activeIds = new HashSet<>(this.currentOrbs.keySet());
         orbFirstSeenTime.keySet().removeIf(id -> !activeIds.contains(id));
         for (Integer orbId : activeIds) {
-            if (!orbFirstSeenTime.containsKey(orbId)) {
-                orbFirstSeenTime.put(orbId, orbAnimTime);
-            }
+            orbFirstSeenTime.computeIfAbsent(orbId, id -> orbAnimTime);
         }
     }
 
@@ -188,18 +188,22 @@ public class GameRenderer {
         batch.setColor(1f, 1f, 1f, 1f);
     }
 
-    private void renderHud(int sessionOrbCount) {
+    public void setInventoryState(InventoryState inventoryState) {
+        this.inventoryState = inventoryState == null ? new InventoryState() : inventoryState;
+    }
+
+    public int getInventorySlotAtScreenPosition(int screenX, int screenY) {
+        return inventoryHudRenderer.getSlotAtScreenPosition(screenX, screenY, inventoryState);
+    }
+
+    public boolean isInventoryScreenPositionInside(int screenX, int screenY) {
+        return inventoryHudRenderer.isInsidePanel(screenX, screenY, inventoryState);
+    }
+
+    private void renderHud(float delta) {
         hudCamera.update();
         batch.setProjectionMatrix(hudCamera.combined);
-        batch.begin();
-
-        float iconX = 18f;
-        float iconY = Gdx.graphics.getHeight() - 18f - HUD_ORB_ICON_SIZE;
-        batch.setColor(1f, 1f, 1f, 1f);
-        batch.draw(orbTexture, iconX, iconY, HUD_ORB_ICON_SIZE, HUD_ORB_ICON_SIZE);
-        hudFont.draw(batch, "x " + sessionOrbCount, iconX + HUD_ORB_ICON_SIZE + 14f, iconY + HUD_ORB_ICON_SIZE - 4f);
-
-        batch.end();
+        inventoryHudRenderer.render(batch, shapeRenderer, hudCamera, hudFont, delta, inventoryState);
     }
 
     private void renderHealthBars(Player player, Map<Integer, RemotePlayer> remotePlayers, NpcManager npcManager) {
@@ -264,6 +268,7 @@ public class GameRenderer {
         cursorManager.dispose();
         hudFont.dispose();
         orbTexture.dispose();
+        inventoryHudRenderer.dispose();
     }
 
     private void renderCenteredMessage(String message) {
