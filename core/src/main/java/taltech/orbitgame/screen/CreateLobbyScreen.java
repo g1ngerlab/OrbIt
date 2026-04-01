@@ -144,7 +144,8 @@ public class CreateLobbyScreen implements Screen {
                         System.out.println("[CreateLobbyScreen] Lobby created: " + lobbyId + " - " + lobbyName);
                         // Join the newly created lobby
                         GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
-                        game.setScreen(new GameScreen((Main) game, gameClient));
+                        // Pass lobbyInfoClient to preserve connection when exiting game
+                        game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));
                         gameClient.connect();
                     });
                 }

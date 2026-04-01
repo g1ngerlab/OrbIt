@@ -142,7 +142,8 @@ public class JoinLobbyScreen implements Screen {
         statusLabel.setText("Joining lobby...");
 
         GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
-        game.setScreen(new GameScreen((Main) game, gameClient));
+        // Pass lobbyInfoClient to preserve connection when exiting game
+        game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));
         gameClient.connect();
     }
 

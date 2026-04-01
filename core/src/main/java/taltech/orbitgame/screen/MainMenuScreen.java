@@ -92,7 +92,7 @@ public class MainMenuScreen implements Screen {
         settingsButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new SettingsMenuScreen(game));
+                game.setScreen(new SettingsMenuScreen(game, lobbyInfoClient));
             }
         });
         table.add(settingsButton).padBottom(20).size(settingsButton.getWidth(), settingsButton.getHeight()).row();

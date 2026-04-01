@@ -182,10 +182,27 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.RequestAllLobbies());
             System.out.println("[LobbyInfoClient] Requested all lobbies");
         } else {
-            System.err.println("[LobbyInfoClient] Cannot request lobbies - not connected");
-            if (allLobbiesListener != null) {
-                allLobbiesListener.onAllLobbiesReceived(new ArrayList<>());
-            }
+            System.err.println("[LobbyInfoClient] Cannot request lobbies - not connected. Retrying...");
+            // Retry after a short delay
+            new Thread(() -> {
+                for (int i = 0; i < 10; i++) {
+                    try {
+                        Thread.sleep(500);
+                        if (client.isConnected()) {
+                            System.out.println("[LobbyInfoClient] Connection established, requesting lobbies");
+                            client.sendTCP(new Network.RequestAllLobbies());
+                            return;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                System.err.println("[LobbyInfoClient] Failed to request lobbies - connection timeout");
+                if (allLobbiesListener != null) {
+                    allLobbiesListener.onAllLobbiesReceived(new ArrayList<>());
+                }
+            }).start();
         }
     }
 
@@ -194,10 +211,27 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.CreateLobby(lobbyName));
             System.out.println("[LobbyInfoClient] Sent create lobby request: " + lobbyName);
         } else {
-            System.err.println("[LobbyInfoClient] Cannot create lobby - not connected");
-            if (lobbyCreatedListener != null) {
-                lobbyCreatedListener.onLobbyCreateFailed("Not connected to server");
-            }
+            System.err.println("[LobbyInfoClient] Cannot create lobby - not connected. Retrying...");
+            // Retry after a short delay
+            new Thread(() -> {
+                for (int i = 0; i < 10; i++) {
+                    try {
+                        Thread.sleep(500);
+                        if (client.isConnected()) {
+                            System.out.println("[LobbyInfoClient] Connection established, sending create lobby request");
+                            client.sendTCP(new Network.CreateLobby(lobbyName));
+                            return;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                System.err.println("[LobbyInfoClient] Failed to create lobby - connection timeout");
+                if (lobbyCreatedListener != null) {
+                    lobbyCreatedListener.onLobbyCreateFailed("Connection timeout");
+                }
+            }).start();
         }
     }
 

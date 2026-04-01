@@ -3,9 +3,8 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ $# -ge 1 && -n "${1:-}" ]]; then
-  export ORBIT_SERVER_PORT="$1"
-fi
+echo "Starting server..."
+echo "Configure server connection in: core/src/main/java/taltech/orbitgame/network/NetworkConfig.java"
 
 cd "$REPO_ROOT"
 ./gradlew Server:run

@@ -6,8 +6,10 @@ import taltech.orbitgame.item.ItemKind;
 
 // This class will be shared by both the client and server.
 public class Network {
-    //public static final int PORT = 54555;
-    public static final int PORT = 8080;
+    // Note: Use NetworkConfig.getServerHost() and NetworkConfig.getServerPort() for runtime configuration
+    // To switch between servers, edit NetworkConfig.java and comment/uncomment the configuration lines
+    //public static final int PORT = 54555;  // Local server
+    public static final int PORT = 8080;  // Remote TalTech server
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
@@ -623,3 +625,6 @@ public class Network {
         }
     }
 }
+
+
+
