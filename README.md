@@ -30,10 +30,46 @@ This project is a **monorepo** containing both the Server and Client components.
 
 #### Connection Configuration
 
-Connection is configured with environment variables (no code changes needed):
+**The game is configured by default to connect to the TalTech Remote Server.**
 
-- `ORBIT_SERVER_HOST` (default: `localhost`)
-- `ORBIT_SERVER_PORT` (default: `54555`)
+To switch between **LOCAL** and **REMOTE** servers, edit `NetworkConfig.java` and comment/uncomment the appropriate lines:
+
+**File:** `core/src/main/java/taltech/orbitgame/network/NetworkConfig.java`
+
+```java
+// ===== SWITCH SERVER CONFIGURATION HERE =====
+// Uncomment ONE of the following pairs:
+
+// === REMOTE SERVER (TalTech) - DEFAULT ===
+private static final String DEFAULT_HOST = "193.40.157.153";
+private static final int DEFAULT_PORT = 8080;
+
+// === LOCAL SERVER - Uncomment to use locally ===
+// private static final String DEFAULT_HOST = "localhost";
+// private static final int DEFAULT_PORT = 54555;
+
+// ============================================
+```
+
+**To use Local Server:**
+1. Comment out the REMOTE SERVER lines:
+   ```java
+   // private static final String DEFAULT_HOST = "193.40.157.153";
+   // private static final int DEFAULT_PORT = 8080;
+   ```
+
+2. Uncomment the LOCAL SERVER lines:
+   ```java
+   private static final String DEFAULT_HOST = "localhost";
+   private static final int DEFAULT_PORT = 54555;
+   ```
+
+3. Rebuild and run the project
+
+**To return to Remote Server:**
+1. Uncomment the REMOTE SERVER lines
+2. Comment out the LOCAL SERVER lines
+3. Rebuild and run the project
 
 #### Prerequisites:
 - **Java 21** (JDK 21 or higher)
@@ -150,17 +186,167 @@ To test multiplayer functionality, open additional terminal windows and repeat s
 - **Artemij Kuzin**
 - **Artur Kuznetsov**
 
+## Detailed Client and Server Communication
+
+### 1. Client-Server Communication (Overview)
+
+The game uses the **KryoNet** framework for object-based communication over **TCP port 54555** (local) or **8080** (remote).
+Communication is event-driven (using Listeners). All transmittable objects (packets) are registered in the `taltech.orbitgame.network.Network` class.
+
+### 2. Client -> Server (Data sent by the Client)
+
+**A. Login**
+- **Sent when:** The connection is established
+- **Content:** Player name (String)
+- **Purpose:** To notify the server of a new player and identify the user
+- **Class:** `Network.Login`
+
+**B. InputState**
+- **Sent when:** Every time the player presses a key (W, A, S, D) or clicks the mouse
+- **Content:**
+  - `w, a, s, d` (boolean): State of the directional keys
+  - `leftClick, rightClick` (boolean): State of the mouse buttons
+  - `mouseX, mouseY` (int): Mouse coordinates on the screen
+  - `clientId` (int): Unique ID of the client
+- **Purpose:** To send player input to the server for processing and broadcasting to other clients
+- **Class:** `Network.InputState`
+
+**C. ReadyState**
+- **Sent when:** Player toggles ready status in the lobby (presses join lobby)
+- **Content:**
+  - `clientId` (int): Unique ID of the client
+  - `isReady` (boolean): Whether the player is ready to start
+- **Purpose:** To notify the server that a player is ready to begin the game
+- **Class:** `Network.ReadyState`
+
+**D. DisconnectionNotification**
+- **Sent when:** Client disconnects from the lobby
+- **Content:** `clientId` (int): Unique ID of the disconnecting client
+- **Purpose:** To notify the server of intentional disconnection
+- **Class:** `Network.DisconnectionNotification`
+
+### 3. Server -> Client (Data sent by the Server)
+
+**A. Registration**
+- **Sent when:** As a response to the Login packet
+- **Content:**
+  - `id` (int): Unique ID assigned to the player by the server
+  - `name` (String): Final player name (the server may append a suffix)
+- **Purpose:** To confirm the connection and inform the client of its network identity
+- **Class:** `Network.Registration`
+
+**B. KeyPressEvent (Input Echoing)**
+- **Sent when:** When the server receives an InputState packet from any client
+- **Content:**
+  - `clientId` (int): ID of the player who sent the input
+  - `playerName` (String): Name of the player
+  - `keys` (String): Textual description of the pressed keys (e.g., "W, A")
+- **Purpose:** To notify all clients about other players' actions (echoing) to synchronize game state
+- **Class:** `Network.KeyPressEvent`
+
+**C. LobbyUpdate**
+- **Sent when:** A player joins, leaves, or changes ready status
+- **Content:** `players` (List<LobbyPlayer>): List of all players in the lobby
+  - Each LobbyPlayer contains:
+    - `id` (int): Player's unique ID
+    - `name` (String): Player's name
+    - `isReady` (boolean): Ready status
+- **Purpose:** To synchronize lobby state across all connected clients
+- **Class:** `Network.LobbyUpdate`
+
+**D. GameStart**
+- **Sent when:** All players in the lobby are ready and the game begins
+- **Content:** None (signal packet)
+- **Purpose:** To transition all clients from lobby to game screen
+- **Class:** `Network.GameStart`
+
+**E. PlayerPositionUpdate**
+- **Sent when:** Player moves or changes state
+- **Content:**
+  - `clientId` (int): ID of the player
+  - `x, y` (float): Player position
+  - `moving` (boolean): Whether player is moving
+  - `aimX, aimY` (float): Aim direction
+- **Purpose:** To synchronize player positions across all clients
+- **Class:** `Network.PlayerPositionUpdate`
+
+**F. PlayerShoot**
+- **Sent when:** A player fires their weapon
+- **Content:**
+  - `clientId` (int): ID of the player shooting
+  - `x, y` (float): Position of the shot
+  - `aimX, aimY` (float): Direction of the shot
+- **Purpose:** To notify all clients when a player shoots
+- **Class:** `Network.PlayerShoot`
+
+**G. PlayerStep**
+- **Sent when:** A player takes a step
+- **Content:**
+  - `clientId` (int): ID of the player
+  - `x, y` (float): Position where step occurred
+- **Purpose:** To play footstep sound effects for other players
+- **Class:** `Network.PlayerStep`
+
+**H. NpcStateUpdate**
+- **Sent when:** NPC changes state, position, or health
+- **Content:** NPC state information (position, health, state)
+- **Purpose:** To synchronize NPC state across all clients
+- **Class:** `Network.NpcStateUpdate`
+
+**I. NpcDeathSound**
+- **Sent when:** An NPC dies
+- **Content:**
+  - `npcId` (int): ID of the NPC
+  - `x, y` (float): Position of death
+- **Purpose:** To play NPC death sound effects
+- **Class:** `Network.NpcDeathSound`
+
+**J. NpcHitSound**
+- **Sent when:** An NPC hits a player
+- **Content:**
+  - `npcId` (int): ID of the NPC
+  - `x, y` (float): Position of hit
+- **Purpose:** To play NPC attack sound effects
+- **Class:** `Network.NpcHitSound`
+
 ## Connection Information
 
-To connect to a non-local server, set env vars before running client/server scripts:
+### Default Configuration (Remote TalTech Server)
 
-```powershell
-$env:ORBIT_SERVER_HOST = "example.server.ip"
-$env:ORBIT_SERVER_PORT = "54555"
+The game is configured by default to connect to the **TalTech Remote Server**:
+- **Host:** `193.40.157.153`
+- **Port:** `8080`
+
+Simply run the client without any configuration changes.
+
+### Switching Server Configuration
+
+**File:** `core/src/main/java/taltech/orbitgame/network/NetworkConfig.java` (lines 12-22)
+
+**For Local Server Testing:**
+```java
+// Comment out these lines:
+// private static final String DEFAULT_HOST = "193.40.157.153";
+// private static final int DEFAULT_PORT = 8080;
+
+// Uncomment these lines:
+private static final String DEFAULT_HOST = "localhost";
+private static final int DEFAULT_PORT = 54555;
 ```
 
-```bash
-export ORBIT_SERVER_HOST="example.server.ip"
-export ORBIT_SERVER_PORT="54555"
+**To Return to Remote Server:**
+```java
+// Uncomment these lines:
+private static final String DEFAULT_HOST = "193.40.157.153";
+private static final int DEFAULT_PORT = 8080;
+
+// Comment out these lines:
+// private static final String DEFAULT_HOST = "localhost";
+// private static final int DEFAULT_PORT = 54555;
 ```
+
+After changing the configuration:
+1. Save the file
+2. Rebuild the project: `./gradlew clean build` (or in IDE)
+3. Run the client/server scripts
 

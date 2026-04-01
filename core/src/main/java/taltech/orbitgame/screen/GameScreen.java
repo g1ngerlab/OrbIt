@@ -7,6 +7,7 @@ import com.badlogic.gdx.graphics.GL20;
 import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
+import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.inventory.InventoryFeature;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.network.Network;
@@ -35,6 +36,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private final Main game;
     private final InputHandler inputHandler;
     private final GameClient gameClient;
+    private final LobbyInfoClient lobbyInfoClient;
     private MapManager map;
     private final Player player;
     private final NpcManager npcManager;
@@ -57,8 +59,13 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private final long mapLoadStartedAtMs;
 
     public GameScreen(Main game, GameClient gameClient) {
+        this(game, gameClient, null);
+    }
+
+    public GameScreen(Main game, GameClient gameClient, LobbyInfoClient lobbyInfoClient) {
         this.game = game;
         this.gameClient = gameClient;
+        this.lobbyInfoClient = lobbyInfoClient;
         this.gameClient.setGameListener(this);
         this.inputHandler = new InputHandler();
         Gdx.input.setInputProcessor(this.inputHandler);
@@ -111,9 +118,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         // Handle ESC key to open menu
         if (!isPaused && Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            // Need to pass 'this' (GameScreen) to GameEscScreen?
-            // Yes, checking GameEscScreen constructor: public GameEscScreen(Main game, GameScreen gameScreen)
-            game.setScreen(new GameEscScreen(game, this));
+            game.setScreen(new GameEscScreen(game, this, lobbyInfoClient));
             return;
         }
 

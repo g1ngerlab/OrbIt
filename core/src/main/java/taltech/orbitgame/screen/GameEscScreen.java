@@ -3,13 +3,19 @@ package taltech.orbitgame.screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider;
+import com.badlogic.gdx.scenes.scene2d.ui.Slider.SliderStyle;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
@@ -22,13 +28,19 @@ public class GameEscScreen implements Screen {
 
     private final Main game;
     private final GameScreen gameScreen;
+    private final LobbyInfoClient lobbyInfoClient;
     private final Stage stage;
     private final Texture overlay;
     private final TextButton.TextButtonStyle buttonStyle;
 
     public GameEscScreen(Main game, GameScreen gameScreen) {
+        this(game, gameScreen, null);
+    }
+
+    public GameEscScreen(Main game, GameScreen gameScreen, LobbyInfoClient lobbyInfoClient) {
         this.game = game;
         this.gameScreen = gameScreen;
+        this.lobbyInfoClient = lobbyInfoClient;
         this.stage = new Stage(new ScreenViewport());
 
         // Create a semi-transparent black overlay
@@ -64,6 +76,14 @@ public class GameEscScreen implements Screen {
             }
         });
 
+        TextButton optionsButton = new TextButton("Options", buttonStyle);
+        optionsButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                showOptions(table);
+            }
+        });
+
         TextButton leaveButton = new TextButton("Leave", buttonStyle);
         leaveButton.addListener(new ClickListener() {
             @Override
@@ -73,9 +93,115 @@ public class GameEscScreen implements Screen {
         });
 
         table.add(resumeButton).padBottom(20).row();
+        table.add(optionsButton).padBottom(20).row();
         table.add(leaveButton).row();
 
         stage.addActor(table);
+    }
+
+    private void showOptions(Table parentTable) {
+        // Clear and create options menu
+        parentTable.clearChildren();
+
+        BitmapFont font = FontManager.getMenuFont();
+        Label.LabelStyle labelStyle = new Label.LabelStyle(font, null);
+        labelStyle.fontColor = new com.badlogic.gdx.graphics.Color(1f, 1f, 1f, 1f);
+
+        // Create slider styles with proper rendering
+        SliderStyle sliderStyle = createSliderStyle();
+
+        // Title
+        Label optionsTitle = new Label("OPTIONS", labelStyle);
+        optionsTitle.setFontScale(1.2f);
+        parentTable.add(optionsTitle).padBottom(50).row();
+
+        // Music volume slider
+        Label musicLabel = new Label("Music Volume", labelStyle);
+        Slider musicSlider = new Slider(0f, 1f, 0.01f, false, sliderStyle);
+        musicSlider.setValue(AudioManager.getInstance().getMusicVolume());
+
+        Label musicValueLabel = new Label("", labelStyle);
+        musicSlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
+                AudioManager.getInstance().setMusicVolume(musicSlider.getValue());
+                musicValueLabel.setText((int)(musicSlider.getValue() * 100) + "%");
+            }
+        });
+        // Initialize value label AFTER listener is added
+        musicValueLabel.setText((int)(musicSlider.getValue() * 100) + "%");
+
+        // SFX volume slider
+        Label sfxLabel = new Label("SFX Volume", labelStyle);
+        Slider sfxSlider = new Slider(0f, 1f, 0.01f, false, sliderStyle);
+        sfxSlider.setValue(AudioManager.getInstance().getSfxVolume());
+
+        Label sfxValueLabel = new Label("", labelStyle);
+        sfxSlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
+                AudioManager.getInstance().setSfxVolume(sfxSlider.getValue());
+                sfxValueLabel.setText((int)(sfxSlider.getValue() * 100) + "%");
+            }
+        });
+        // Initialize value label AFTER listener is added
+        sfxValueLabel.setText((int)(sfxSlider.getValue() * 100) + "%");
+
+        // Back button
+        TextButton backButton = new TextButton("Back", buttonStyle);
+        backButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                parentTable.clearChildren();
+                setupUI();
+            }
+        });
+
+        // Add Music Volume row - label above slider
+        Table musicLabelRow = new Table();
+        musicLabelRow.add(musicLabel).left();
+        musicLabelRow.add(musicValueLabel).right().padLeft(100);
+        parentTable.add(musicLabelRow).width(400).padBottom(5).row();
+
+        Table musicSliderRow = new Table();
+        musicSliderRow.add(musicSlider).width(250);
+        parentTable.add(musicSliderRow).padBottom(40).row();
+
+        // Add SFX Volume row - label above slider
+        Table sfxLabelRow = new Table();
+        sfxLabelRow.add(sfxLabel).left();
+        sfxLabelRow.add(sfxValueLabel).right().padLeft(130);
+        parentTable.add(sfxLabelRow).width(400).padBottom(5).row();
+
+        Table sfxSliderRow = new Table();
+        sfxSliderRow.add(sfxSlider).width(250);
+        parentTable.add(sfxSliderRow).padBottom(60).row();
+
+        // Add back button
+        parentTable.add(backButton).row();
+    }
+
+    private SliderStyle createSliderStyle() {
+        SliderStyle sliderStyle = new SliderStyle();
+
+        // Create a small white rectangle for the knob
+        Pixmap knobPixmap = new Pixmap(12, 24, Pixmap.Format.RGBA8888);
+        knobPixmap.setColor(1, 1, 1, 1); // White
+        knobPixmap.fill();
+        Texture knobTexture = new Texture(knobPixmap);
+        knobPixmap.dispose();
+
+        // Create a gray rectangle for the background
+        Pixmap bgPixmap = new Pixmap(250, 8, Pixmap.Format.RGBA8888);
+        bgPixmap.setColor(0.3f, 0.3f, 0.3f, 1); // Dark gray
+        bgPixmap.fill();
+        Texture bgTexture = new Texture(bgPixmap);
+        bgPixmap.dispose();
+
+        sliderStyle.background = new TextureRegionDrawable(bgTexture);
+        sliderStyle.knob = new TextureRegionDrawable(knobTexture);
+
+        return sliderStyle;
     }
 
     private void resumeGame() {
@@ -93,8 +219,9 @@ public class GameEscScreen implements Screen {
             // Switch back to lobby music (explicitly stop game music first)
             AudioManager.getInstance().stopCurrentMusic();
             AudioManager.getInstance().playRandomLobbyMusic();
-            // Create a fresh LobbyInfoClient so lobby browsing works after returning
-            game.setScreen(new MainMenuScreen(game, new LobbyInfoClient()));
+            // Use existing LobbyInfoClient if available, otherwise create new one
+            LobbyInfoClient clientToUse = (lobbyInfoClient != null) ? lobbyInfoClient : new LobbyInfoClient();
+            game.setScreen(new MainMenuScreen(game, clientToUse));
         });
     }
 

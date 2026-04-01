@@ -149,7 +149,8 @@ public class PlayMenuScreen implements Screen {
         GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
 
         // Create GameScreen first so listener is attached before any server packets arrive.
-        game.setScreen(new GameScreen((Main) game, gameClient));
+        // Pass lobbyInfoClient to preserve connection when exiting game
+        game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));
         gameClient.connect();
     }
 
@@ -167,7 +168,8 @@ public class PlayMenuScreen implements Screen {
         button.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new MainMenuScreen((Main) game));
+                // Pass lobbyInfoClient to MainMenuScreen to keep connection alive
+                game.setScreen(new MainMenuScreen((Main) game, lobbyInfoClient));
             }
         });
 
@@ -223,8 +225,7 @@ public class PlayMenuScreen implements Screen {
         stage.dispose();
         batch.dispose();
         background.dispose();
-        if (lobbyInfoClient != null) {
-            lobbyInfoClient.disconnect();
-        }
+        // Note: Don't disconnect lobbyInfoClient here - it's shared and needs to stay connected
+        // for returning to the lobby selection screen. It will be disconnected when the app closes.
     }
 }

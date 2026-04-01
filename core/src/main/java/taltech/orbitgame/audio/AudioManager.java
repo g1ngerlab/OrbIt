@@ -28,14 +28,14 @@ public class AudioManager {
     private Sound orbSound;
     private Sound playerDeathSound;
     private static final String[] LOBBY_MUSIC_PATHS = {
-            "LobbyMusic/Cyberia lyr2-132369550.mp3",
-            "LobbyMusic/I Need To Feel Loved-1935759142.mp3",
-            "LobbyMusic/joon-1493758854.mp3"
+        "LobbyMusic/Cyberia lyr2-132369550.mp3",
+        "LobbyMusic/I Need To Feel Loved-1935759142.mp3",
+        "LobbyMusic/joon-1493758854.mp3"
     };
     private static final String[] GAME_SESSION_MUSIC_PATHS = {
-            "GameSeshMusic/Knife Party - 'Bonfire'-419194644.mp3",
-            "GameSeshMusic/NOISE MOTHER-233127447.mp3",
-            "GameSeshMusic/SHOPLIFTERS-1869278771.mp3"
+        "GameSeshMusic/Knife Party - 'Bonfire'-419194644.mp3",
+        "GameSeshMusic/NOISE MOTHER-233127447.mp3",
+        "GameSeshMusic/SHOPLIFTERS-1869278771.mp3"
     };
 
     private AudioManager() {
@@ -465,5 +465,19 @@ public class AudioManager {
         if (playerDeathSound != null) {
             playerDeathSound.dispose();
         }
+    }
+
+    /**
+     * Set music volume (0.0 to 1.0)
+     */
+    public void setMusicVolume(float newVolume) {
+        setVolume(newVolume);
+    }
+
+    /**
+     * Get current music volume
+     */
+    public float getMusicVolume() {
+        return getVolume();
     }
 }
