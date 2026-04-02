@@ -105,6 +105,9 @@ public class PlayerController {
             && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
             && shotCooldownTimer <= 0f
             && isInLobby) {
+            if (player.getCharacterType() == taltech.orbitgame.player.CharacterType.PUPU) {
+                player.triggerAttack();
+            }
             gameClient.sendShoot(localAimX, localAimY);
             // Play shotgun sound for own shot at full volume
             AudioManager.getInstance().playShotgunShot(player.getCenterX(), player.getCenterY(),
@@ -150,6 +153,7 @@ public class PlayerController {
         camera.unproject(mouseWorld);
         localAimX = mouseWorld.x;
         localAimY = mouseWorld.y;
+        player.setAimX(localAimX);
     }
 
     /**

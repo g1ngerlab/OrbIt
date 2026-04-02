@@ -13,6 +13,8 @@ import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
+import taltech.orbitgame.player.PlayerProfile;
+import taltech.orbitgame.player.CharacterType;
 import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.world.MapManager;
@@ -73,7 +75,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Stop lobby music and start game session music
         AudioManager.getInstance().playRandomGameSessionMusic();
 
-        this.player = new Player();
+        CharacterType characterType = CharacterType.fromId(
+            PlayerProfile.getSelectedCharacterId()
+        );
+        this.player = new Player(characterType);
         this.player.setPlayerName(gameClient.getPlayerName());
         this.remotePlayers = new HashMap<>();
 
@@ -83,7 +88,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         this.orbs = new HashMap<>();
 
         // Initialize renderer
-        this.gameRenderer = new GameRenderer();
+        this.gameRenderer = new GameRenderer(player.getCharacterType());
         this.inventoryFeature = new InventoryFeature();
 
         this.mapLoadStartedAtMs = System.currentTimeMillis();
@@ -240,10 +245,16 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     // GameClientListener callbacks
     @Override
-    public void onPlayerJoined(int clientId, String playerName, float x, float y) {
+    public void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId) {
         Gdx.app.postRunnable(() -> {
             System.out.println("[GameScreen] Adding remote player: " + playerName + " at (" + x + ", " + y + ")");
-            RemotePlayer remotePlayer = new RemotePlayer(clientId, playerName, x, y);
+            RemotePlayer remotePlayer = new RemotePlayer(
+                clientId,
+                playerName,
+                x,
+                y,
+                CharacterType.fromId(characterId)
+            );
             remotePlayers.put(clientId, remotePlayer);
         });
     }
@@ -279,7 +290,8 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
                         playerInfo.clientId,
                         playerInfo.playerName,
                         playerInfo.x,
-                        playerInfo.y
+                        playerInfo.y,
+                        CharacterType.fromId(playerInfo.characterId)
                     );
                     remotePlayer.updatePosition(playerInfo.x, playerInfo.y, false, playerInfo.aimX, playerInfo.aimY);
                     remotePlayers.put(playerInfo.clientId, remotePlayer);
@@ -327,7 +339,14 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             Set<Integer> seen = new HashSet<>();
             for (Network.BulletState state : bulletStateUpdate.bullets) {
                 seen.add(state.bulletId);
-                gameRenderer.getBulletRenderer().updateBullet(state.bulletId, state.x, state.y, state.angleDeg, state.radius);
+                gameRenderer.getBulletRenderer().updateBullet(
+                    state.bulletId,
+                    state.x,
+                    state.y,
+                    state.angleDeg,
+                    state.radius,
+                    state.bulletType
+                );
             }
             gameRenderer.getBulletRenderer().cleanupBullets(seen);
         });
@@ -431,6 +450,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             // Other player's shot - play sound with distance attenuation
             RemotePlayer shooter = remotePlayers.get(playerShoot.clientId);
+            if (shooter != null) {
+                shooter.triggerAttack();
+            }
             float shooterX = playerShoot.shooterX;
             float shooterY = playerShoot.shooterY;
 

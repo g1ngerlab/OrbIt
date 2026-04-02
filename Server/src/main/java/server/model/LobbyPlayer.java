@@ -6,6 +6,7 @@ public class LobbyPlayer {
     private final int clientId;
     private final String playerName;
     private final Connection connection;
+    private final int characterId;
 
     private final float maxHealth;
     private float currentHealth;
@@ -16,10 +17,11 @@ public class LobbyPlayer {
     private float aimX;
     private float aimY;
 
-    public LobbyPlayer(int clientId, String playerName, Connection connection, float spawnX, float spawnY,
+    public LobbyPlayer(int clientId, String playerName, int characterId, Connection connection, float spawnX, float spawnY,
                        float playerWidth, float playerHeight, float maxHealth) {
         this.clientId = clientId;
         this.playerName = playerName;
+        this.characterId = characterId;
         this.connection = connection;
         this.x = spawnX;
         this.y = spawnY;
@@ -39,6 +41,10 @@ public class LobbyPlayer {
 
     public Connection getConnection() {
         return connection;
+    }
+
+    public int getCharacterId() {
+        return characterId;
     }
 
     public float getX() {

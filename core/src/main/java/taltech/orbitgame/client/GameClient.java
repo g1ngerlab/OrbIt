@@ -3,6 +3,7 @@ package taltech.orbitgame.client;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+import taltech.orbitgame.player.PlayerProfile;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.network.Network.InputState;
 import taltech.orbitgame.network.NetworkConfig;
@@ -19,7 +20,7 @@ public class GameClient {
     private GameClientListener gameListener;
 
     public interface GameClientListener {
-        void onPlayerJoined(int clientId, String playerName, float x, float y);
+        void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId);
         void onPlayerLeft(int clientId);
         void onPlayerPositionUpdate(int clientId, float x, float y, boolean moving, float aimX, float aimY);
         void onLobbyState(Network.LobbyState lobbyState);
@@ -72,7 +73,10 @@ public class GameClient {
 
                     // Join the lobby after registration
                     System.out.println("[Client] Requesting to join lobby " + lobbyId);
-                    Network.JoinLobby joinLobby = new Network.JoinLobby(lobbyId);
+                    Network.JoinLobby joinLobby = new Network.JoinLobby(
+                        lobbyId,
+                        PlayerProfile.getSelectedCharacterId()
+                    );
                     client.sendTCP(joinLobby);
                 }
                 if (object instanceof Network.LobbyState) {
@@ -86,7 +90,8 @@ public class GameClient {
                     Network.PlayerJoined joined = (Network.PlayerJoined) object;
                     System.out.println("[Client] Player joined: " + joined.playerName + " (id=" + joined.clientId + ")");
                     if (gameListener != null && joined.clientId != clientId) {
-                        gameListener.onPlayerJoined(joined.clientId, joined.playerName, joined.x, joined.y);
+                        gameListener.onPlayerJoined(joined.clientId, joined.playerName, joined.x, joined.y,
+                            joined.characterId);
                     }
                 }
                 if (object instanceof Network.PlayerLeft) {

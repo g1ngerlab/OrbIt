@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
 
+
 /**
  * Represents a game lobby that can hold multiple players
  */
@@ -127,7 +128,20 @@ public class Lobby {
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
-        LobbyPlayer player = createPlayer(clientId, playerName, connection);
+        LobbyPlayer player = createPlayer(clientId, playerName, 1, connection);
+        players.put(clientId, player);
+        playerInventories.put(clientId, createEmptyInventory());
+        emptyTimestamp = 0; // Lobby is no longer empty
+
+        LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
+
+        sendLobbySnapshotToNewPlayer(clientId, connection, player);
+        notifyOthersAboutNewPlayer(player);
+        sendWorldSnapshotTo(connection);
+    }
+
+    public void addPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, createEmptyInventory());
         emptyTimestamp = 0; // Lobby is no longer empty
@@ -381,7 +395,13 @@ public class Lobby {
     }
 
     private LobbyPlayer createPlayer(int clientId, String playerName, Connection connection) {
-        return new LobbyPlayer(clientId, playerName, connection, 400f, 300f, PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
+        return createPlayer(clientId, playerName, 1, connection);
+    }
+
+    private LobbyPlayer createPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        int normalizedCharacterId = characterId <= 0 ? 1 : characterId;
+        return new LobbyPlayer(clientId, playerName, normalizedCharacterId,
+            connection, 400f, 300f, PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
     }
 
     private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
@@ -394,7 +414,8 @@ public class Lobby {
                     player.getX(),
                     player.getY(),
                     player.getAimX(),
-                    player.getAimY()
+                    player.getAimY(),
+                    player.getCharacterId()
                 ));
             }
         }
@@ -407,7 +428,8 @@ public class Lobby {
             player.getClientId(),
             player.getPlayerName(),
             player.getX(),
-            player.getY()
+            player.getY(),
+            player.getCharacterId()
         );
         broadcastToOthers(player.getClientId(), joined);
     }

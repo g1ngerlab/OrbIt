@@ -220,7 +220,8 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
-        lobby.addPlayer(clientId, playerName, connection);
+        int characterId = joinLobby == null ? 1 : Math.max(1, joinLobby.characterId);
+        lobby.addPlayer(clientId, playerName, characterId, connection);
         clientToLobby.put(clientId, joinLobby.lobbyId);
     }
 

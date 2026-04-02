@@ -14,6 +14,7 @@ import taltech.orbitgame.inventory.InventoryState;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
+import taltech.orbitgame.player.CharacterType;
 import taltech.orbitgame.ui.HealthBarRenderer;
 import taltech.orbitgame.util.FontManager;
 import taltech.orbitgame.world.MapManager;
@@ -42,6 +43,7 @@ public class GameRenderer {
     private final Texture orbTexture;
     private final InventoryHudRenderer inventoryHudRenderer;
     private final OrthographicCamera hudCamera;
+    private final CharacterType localCharacterType;
 
     private static final int CROSSHAIR_SCALE = 2;
     private static final float PLAYER_HEALTH_Y_OFFSET = 8f;
@@ -58,7 +60,8 @@ public class GameRenderer {
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
     private InventoryState inventoryState;
 
-    public GameRenderer() {
+    public GameRenderer(CharacterType localCharacterType) {
+        this.localCharacterType = localCharacterType == null ? CharacterType.MATH : localCharacterType;
         this.batch = new SpriteBatch();
         this.shapeRenderer = new ShapeRenderer();
         this.healthBarRenderer = new HealthBarRenderer(shapeRenderer);
@@ -67,7 +70,10 @@ public class GameRenderer {
         camera.setToOrtho(false, 800, 600);
         this.cameraController = new CameraController(camera);
 
-        this.bulletRenderer = new BulletRenderer();
+        String bulletTexturePath = this.localCharacterType == CharacterType.PUPU
+            ? "guns/banaan_bullet2.png"
+            : null;
+        this.bulletRenderer = new BulletRenderer(bulletTexturePath);
         this.weaponRenderer = new WeaponRenderer();
         this.corpseRenderer = new CorpseRenderer();
         this.cursorManager = new CursorManager("guns/crosshair.png", CROSSHAIR_SCALE);
@@ -114,24 +120,28 @@ public class GameRenderer {
         // Render remote players with weapons
         for (RemotePlayer remotePlayer : remotePlayers.values()) {
             remotePlayer.render(batch);
-            weaponRenderer.drawShotgun(
-                batch,
-                remotePlayer.getCenterX(),
-                remotePlayer.getCenterY() + 8f,
-                remotePlayer.getAimX(),
-                remotePlayer.getAimY()
-            );
+            if (remotePlayer.getCharacterType() != CharacterType.PUPU) {
+                weaponRenderer.drawShotgun(
+                    batch,
+                    remotePlayer.getCenterX(),
+                    remotePlayer.getCenterY() + 8f,
+                    remotePlayer.getAimX(),
+                    remotePlayer.getAimY()
+                );
+            }
         }
 
         // Render local player with weapon
         player.render(batch);
-        weaponRenderer.drawShotgun(
-            batch,
-            player.getCenterX(),
-            player.getCenterY() + 8f,
-            playerController.getLocalAimX(),
-            playerController.getLocalAimY()
-        );
+        if (player.getCharacterType() != CharacterType.PUPU) {
+            weaponRenderer.drawShotgun(
+                batch,
+                player.getCenterX(),
+                player.getCenterY() + 8f,
+                playerController.getLocalAimX(),
+                playerController.getLocalAimY()
+            );
+        }
 
         // Render bullets
         bulletRenderer.render(batch);
