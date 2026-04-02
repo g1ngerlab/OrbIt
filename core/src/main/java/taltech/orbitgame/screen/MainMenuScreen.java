@@ -9,6 +9,7 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -17,6 +18,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
+import taltech.orbitgame.player.CharacterType;
+import taltech.orbitgame.player.PlayerProfile;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
@@ -31,6 +34,7 @@ public class MainMenuScreen implements Screen {
     private Texture spaceBackground;
     private Texture buttonTexture;
     private Texture buttonPressedTexture;
+    private Texture characterPreviewTexture;
     private BitmapFont pixelFont;
     private LobbyInfoClient lobbyInfoClient; // Shared connection from ConnectionScreen
 
@@ -65,9 +69,14 @@ public class MainMenuScreen implements Screen {
         pixelFont = FontManager.getMenuFont();
 
         // Create UI layout
-        Table table = new Table();
-        table.setFillParent(true);
-        stage.addActor(table);
+        Table mainTable = new Table();
+        mainTable.setFillParent(true);
+        stage.addActor(mainTable);
+
+        Table leftTable = new Table();
+        Table rightTable = new Table();
+        mainTable.add(leftTable).padRight(60).left();
+        mainTable.add(rightTable).padLeft(60).right();
 
         // Add "Orbit" title text above buttons
         Label.LabelStyle titleStyle = new Label.LabelStyle();
@@ -75,7 +84,22 @@ public class MainMenuScreen implements Screen {
         titleStyle.fontColor = Color.WHITE;
         Label titleLabel = new Label("Orbit", titleStyle);
         titleLabel.setFontScale(2.0f); // Make title larger
-        table.add(titleLabel).padBottom(50).row();
+        rightTable.add(titleLabel).padBottom(50).row();
+
+        CharacterType selectedCharacter = CharacterType.fromId(PlayerProfile.getSelectedCharacterId());
+        characterPreviewTexture = new Texture(Gdx.files.internal(selectedCharacter.getPreviewTexturePath()));
+        characterPreviewTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        Image characterImage = new Image(new TextureRegionDrawable(characterPreviewTexture));
+        leftTable.add(characterImage).size(260, 260).padBottom(25).row();
+
+        TextButton charactersButton = createButton("CHARACTERS");
+        charactersButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.setScreen(new CharacterSelectScreen(game, lobbyInfoClient));
+            }
+        });
+        leftTable.add(charactersButton).padBottom(20).size(charactersButton.getWidth(), charactersButton.getHeight()).row();
 
         // Create Play button
         TextButton playButton = createButton("PLAY");
@@ -85,7 +109,7 @@ public class MainMenuScreen implements Screen {
                 game.setScreen(new LobbyChoiceScreen(game, lobbyInfoClient));
             }
         });
-        table.add(playButton).padBottom(20).size(playButton.getWidth(), playButton.getHeight()).row();
+        rightTable.add(playButton).padBottom(20).size(playButton.getWidth(), playButton.getHeight()).row();
 
         // Create Settings button
         TextButton settingsButton = createButton("SETTINGS");
@@ -95,7 +119,7 @@ public class MainMenuScreen implements Screen {
                 game.setScreen(new SettingsMenuScreen(game, lobbyInfoClient));
             }
         });
-        table.add(settingsButton).padBottom(20).size(settingsButton.getWidth(), settingsButton.getHeight()).row();
+        rightTable.add(settingsButton).padBottom(20).size(settingsButton.getWidth(), settingsButton.getHeight()).row();
 
         // Create Leave button
         TextButton leaveButton = createButton("LEAVE");
@@ -105,7 +129,7 @@ public class MainMenuScreen implements Screen {
                 Gdx.app.exit();
             }
         });
-        table.add(leaveButton).padBottom(20).size(leaveButton.getWidth(), leaveButton.getHeight()).row();
+        rightTable.add(leaveButton).padBottom(20).size(leaveButton.getWidth(), leaveButton.getHeight()).row();
     }
 
     private TextButton createButton(String text) {
@@ -170,6 +194,9 @@ public class MainMenuScreen implements Screen {
         spaceBackground.dispose();
         buttonTexture.dispose();
         buttonPressedTexture.dispose();
+        if (characterPreviewTexture != null) {
+            characterPreviewTexture.dispose();
+        }
         // Font is managed by FontManager, don't dispose here
     }
 }

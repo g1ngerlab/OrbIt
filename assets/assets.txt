@@ -12,6 +12,7 @@ MainMenuAssets/orbit.png
 Space Background Laptop.gif
 UI/inventory_border.png
 fonts/PixelifySans-VariableFont_wght.ttf
+guns/banaan_bullet2.png
 guns/crosshair.png
 guns/test_bullet.png
 guns/test_shotgun.png
@@ -21,10 +22,18 @@ npc/fightbutler.png
 npc/robotbutler.png
 npc/runbutler.png
 player/BadBoy.png
+player/Math_character.png
 player/run_down.png
 player/run_side.png
 player/run_up.png
 player/without_run.png
+pupu/Monkey_pupu.png
+pupu/MyPupu.png
+pupu/attack_pupu.png
+pupu/back_pupu.png
+pupu/down_pupu.png
+pupu/papapa.png
+pupu/side_pupu.png
 sounds/death.mp3
 sounds/hit.mp3
 sounds/npc_death.mp3

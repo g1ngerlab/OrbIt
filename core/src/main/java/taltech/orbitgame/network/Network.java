@@ -115,11 +115,13 @@ public class Network {
      */
     public static class JoinLobby {
         public int lobbyId;
+        public int characterId;
 
         public JoinLobby() {}
 
-        public JoinLobby(int lobbyId) {
+        public JoinLobby(int lobbyId, int characterId) {
             this.lobbyId = lobbyId;
+            this.characterId = characterId;
         }
     }
 
@@ -154,14 +156,16 @@ public class Network {
         public String playerName;
         public float x;
         public float y;
+        public int characterId;
 
         public PlayerJoined() {}
 
-        public PlayerJoined(int clientId, String playerName, float x, float y) {
+        public PlayerJoined(int clientId, String playerName, float x, float y, int characterId) {
             this.clientId = clientId;
             this.playerName = playerName;
             this.x = x;
             this.y = y;
+            this.characterId = characterId;
         }
     }
 
@@ -188,16 +192,18 @@ public class Network {
         public float y;
         public float aimX;
         public float aimY;
+        public int characterId;
 
         public PlayerInfo() {}
 
-        public PlayerInfo(int clientId, String playerName, float x, float y, float aimX, float aimY) {
+        public PlayerInfo(int clientId, String playerName, float x, float y, float aimX, float aimY, int characterId) {
             this.clientId = clientId;
             this.playerName = playerName;
             this.x = x;
             this.y = y;
             this.aimX = aimX;
             this.aimY = aimY;
+            this.characterId = characterId;
         }
     }
 
@@ -383,6 +389,7 @@ public class Network {
         public float y;
         public float angleDeg;
         public float radius;
+        public int bulletType;
 
         public BulletState() {}
     }

@@ -67,7 +67,9 @@ public class BulletCombatSystem {
 
             Vector2 velocity = new Vector2(direction).scl(bulletSpeed);
             int bulletId = nextBulletId++;
-            bullets.put(bulletId, new ServerBullet(bulletId, shot.getOwnerClientId(), spawnPoint, velocity, bulletLifetime));
+            int bulletType = owner.getCharacterId() == 2 ? 2 : 1;
+            bullets.put(bulletId, new ServerBullet(bulletId, shot.getOwnerClientId(), bulletType,
+                spawnPoint, velocity, bulletLifetime));
         }
 
         return nextBulletId;
@@ -109,6 +111,7 @@ public class BulletCombatSystem {
             state.y = bullet.getPosition().y;
             state.radius = bulletRadius;
             state.angleDeg = bullet.getVelocity().angleDeg();
+            state.bulletType = bullet.getBulletType();
             update.bullets.add(state);
         }
 
