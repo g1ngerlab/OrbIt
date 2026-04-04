@@ -8,6 +8,10 @@ import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.client.LobbyInfoClient;
+import taltech.orbitgame.extraction.ExtractionInputController;
+import taltech.orbitgame.extraction.ExtractionManager;
+import taltech.orbitgame.extraction.ExtractionPointRenderer;
+import taltech.orbitgame.extraction.ui.ExtractionUiHud;
 import taltech.orbitgame.inventory.InventoryFeature;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.network.Network;
@@ -53,12 +57,22 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     private boolean isInLobby = false;
     private boolean isPaused = false;
+    private boolean leavingGame = false;
     private boolean loggedEmptyNpcSnapshot = false;
     private boolean disposed = false;
     private final InventoryFeature inventoryFeature;
     private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
     private Throwable mapLoadError;
     private final long mapLoadStartedAtMs;
+
+    // Extraction points system
+    private final ExtractionManager extractionManager;
+    private ExtractionPointRenderer extractionPointRenderer;
+    private ExtractionInputController extractionInputController;
+    private ExtractionUiHud extractionUiHud;
+
+    // Debugging
+    private boolean debugCoordsVisible = false;
 
     public GameScreen(Main game, GameClient gameClient) {
         this(game, gameClient, null);
@@ -91,6 +105,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         this.gameRenderer = new GameRenderer(player.getCharacterType());
         this.inventoryFeature = new InventoryFeature();
 
+        // Initialize extraction points system
+        this.extractionManager = new ExtractionManager();
+
         this.mapLoadStartedAtMs = System.currentTimeMillis();
         this.mapLoadFuture = CompletableFuture.supplyAsync(MapManager::loadData, MAP_LOAD_EXECUTOR);
 
@@ -109,6 +126,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Don't render if already disposed
         if (disposed) {
             return;
+        }
+
+        if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
+            debugCoordsVisible = !debugCoordsVisible;
         }
 
         Gdx.gl.glClearColor(0, 0, 0.2f, 1);
@@ -145,16 +166,35 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             playerController.setShootingBlocked(cursorInsideInventory);
             playerController.update(delta, isInLobby);
 
+            // Update extraction input
+            extractionInputController.update(delta, player.getCenterX(), player.getCenterY());
+
             for (RemotePlayer remotePlayer : remotePlayers.values()) {
                 remotePlayer.update(delta);
             }
+
+            // Update extraction manager
+            extractionManager.update(delta);
         }
 
         // Delegate rendering to GameRenderer
 
         gameRenderer.setOrbHudState(orbs);
         gameRenderer.setInventoryState(inventoryFeature.getState());
+        gameRenderer.setDebugOverlayVisible(debugCoordsVisible);
         gameRenderer.render(delta, isInLobby, player, remotePlayers, map, npcManager, corpses, playerController);
+
+        // Render extraction points
+        if (isInLobby
+            && extractionPointRenderer != null
+            && extractionUiHud != null
+            && extractionInputController != null) {
+            extractionPointRenderer.render(gameRenderer.getBatch());
+            extractionUiHud.setNearbyPoint(extractionInputController.getNearbyPoint());
+            extractionUiHud.setExtractingPoint(extractionInputController.getExtractingPoint());
+            extractionUiHud.setExtractionTimer(extractionInputController.getRemainingTime());
+            extractionUiHud.render(gameRenderer.getBatch());
+        }
 
         // Send updates to server if not paused and connected
         if (!isPaused && isInLobby && playerController != null) {
@@ -205,6 +245,13 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             player.dispose();
             npcManager.dispose();
             gameRenderer.dispose();
+            extractionManager.dispose();
+            if (extractionPointRenderer != null) {
+                extractionPointRenderer.dispose();
+            }
+            if (extractionUiHud != null) {
+                extractionUiHud.dispose();
+            }
             for (RemotePlayer remotePlayer : remotePlayers.values()) {
                 remotePlayer.dispose();
             }
@@ -232,6 +279,17 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
                 gameRenderer.getCameraController().getCamera(),
                 speed
             );
+
+            // Initialize extraction system
+            this.extractionPointRenderer = new ExtractionPointRenderer(extractionManager);
+            this.extractionInputController = new ExtractionInputController(
+                extractionManager,
+                gameClient,
+                gameClient.getClientId()
+            );
+            this.extractionInputController.setExtractionListener(this::leaveToMainMenuLikeEscLeave);
+            this.extractionUiHud = new ExtractionUiHud(gameClient.getClientId());
+
             System.out.println("[GameScreen] Map ready. Collision grid=" + map.getCollisionGridSize()
                 + ", render chunks=" + map.getRenderChunkCount()
                 + ", total async load=" + (System.currentTimeMillis() - mapLoadStartedAtMs) + " ms");
@@ -500,8 +558,40 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         });
     }
 
+    @Override
+    public void onExtractionPointStateUpdate(Network.ExtractionPointStateUpdate stateUpdate) {
+        Gdx.app.postRunnable(() -> {
+            if (extractionInputController != null) {
+                extractionInputController.applyServerUpdate(
+                    stateUpdate.extractionPointId,
+                    stateUpdate.state,
+                    stateUpdate.activatingClientId,
+                    stateUpdate.remainingTime
+                );
+            }
+        });
+    }
+
     public boolean isDisposed() {
         return disposed;
+    }
+
+    private void leaveToMainMenuLikeEscLeave() {
+        if (leavingGame || disposed) {
+            return;
+        }
+        leavingGame = true;
+        isPaused = true;
+
+        Gdx.app.postRunnable(() -> {
+            if (!disposed) {
+                dispose();
+            }
+            AudioManager.getInstance().stopCurrentMusic();
+            AudioManager.getInstance().playRandomLobbyMusic();
+            LobbyInfoClient clientToUse = (lobbyInfoClient != null) ? lobbyInfoClient : new LobbyInfoClient();
+            game.setScreen(new MainMenuScreen(game, clientToUse));
+        });
     }
 
 }

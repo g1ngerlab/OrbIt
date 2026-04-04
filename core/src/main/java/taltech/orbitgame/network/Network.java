@@ -55,6 +55,10 @@ public class Network {
         kryo.register(RequestAllLobbies.class);
         kryo.register(AllLobbiesInfo.class);
         kryo.register(LobbyListItem.class);
+        kryo.register(ExtractionPointActivation.class);
+        kryo.register(ExtractionPointStateUpdate.class);
+        kryo.register(ExtractionPointsData.class);
+        kryo.register(ExtractionPointData.class);
     }
 
     public static class Login {
@@ -631,7 +635,69 @@ public class Network {
             lobbies = new java.util.ArrayList<>();
         }
     }
+
+    /**
+     * Sent by client when attempting to activate an extraction point
+     */
+    public static class ExtractionPointActivation {
+        public int clientId;
+        public int extractionPointId;
+
+        public ExtractionPointActivation() {}
+
+        public ExtractionPointActivation(int clientId, int extractionPointId) {
+            this.clientId = clientId;
+            this.extractionPointId = extractionPointId;
+        }
+    }
+
+    /**
+     * Sent by server when an extraction point state changes
+     */
+    public static class ExtractionPointStateUpdate {
+        public int extractionPointId;
+        public int state; // 0 = available, 1 = activating, 2 = blocked
+        public int activatingClientId; // -1 if not activating
+        public float remainingTime; // for UI display
+
+        public ExtractionPointStateUpdate() {}
+
+        public ExtractionPointStateUpdate(int extractionPointId, int state, int activatingClientId, float remainingTime) {
+            this.extractionPointId = extractionPointId;
+            this.state = state;
+            this.activatingClientId = activatingClientId;
+            this.remainingTime = remainingTime;
+        }
+    }
+
+    /**
+     * Sent by server to provide all extraction points data at game start
+     */
+    public static class ExtractionPointsData {
+        public java.util.ArrayList<ExtractionPointData> points;
+
+        public ExtractionPointsData() {
+            points = new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Data about a single extraction point
+     */
+    public static class ExtractionPointData {
+        public int id;
+        public float x;
+        public float y;
+        public float radius;
+
+        public ExtractionPointData() {}
+
+        public ExtractionPointData(int id, float x, float y, float radius) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+        }
+    }
 }
-
-
 
