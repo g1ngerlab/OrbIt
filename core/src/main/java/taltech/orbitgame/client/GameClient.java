@@ -43,6 +43,8 @@ public class GameClient {
         void onNpcDeathSound(Network.NpcDeathSound npcDeathSound);
         /** Called when an NPC hits a player. */
         void onNpcHitSound(Network.NpcHitSound npcHitSound);
+        /** Called when an extraction point state changes. */
+        void onExtractionPointStateUpdate(Network.ExtractionPointStateUpdate stateUpdate);
     }
 
     public GameClient(int lobbyId, String playerName) {
@@ -186,6 +188,12 @@ public class GameClient {
                         gameListener.onNpcHitSound(npcHitSound);
                     }
                 }
+                if (object instanceof Network.ExtractionPointStateUpdate) {
+                    Network.ExtractionPointStateUpdate update = (Network.ExtractionPointStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onExtractionPointStateUpdate(update);
+                    }
+                }
             }
 
             @Override
@@ -243,6 +251,12 @@ public class GameClient {
     public void sendMoveInventoryItem(int fromSlotIndex, int toSlotIndex) {
         if (client.isConnected() && clientId != -1) {
             client.sendTCP(new Network.MoveInventoryItemRequest(fromSlotIndex, toSlotIndex));
+        }
+    }
+
+    public void sendToServer(Object packet) {
+        if (client != null && client.isConnected()) {
+            client.sendTCP(packet);
         }
     }
 

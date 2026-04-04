@@ -59,6 +59,7 @@ public class GameRenderer {
     private Map<Integer, Network.OrbState> currentOrbs = Collections.emptyMap();
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
     private InventoryState inventoryState;
+    private boolean debugOverlayVisible;
 
     public GameRenderer(CharacterType localCharacterType) {
         this.localCharacterType = localCharacterType == null ? CharacterType.MATH : localCharacterType;
@@ -149,7 +150,7 @@ public class GameRenderer {
 
         // Render health bars
         renderHealthBars(player, remotePlayers, npcManager);
-        renderHud(delta);
+        renderHud(delta, player);
     }
 
     public void setOrbHudState(Map<Integer, Network.OrbState> orbs) {
@@ -202,6 +203,10 @@ public class GameRenderer {
         this.inventoryState = inventoryState == null ? new InventoryState() : inventoryState;
     }
 
+    public void setDebugOverlayVisible(boolean debugOverlayVisible) {
+        this.debugOverlayVisible = debugOverlayVisible;
+    }
+
     public int getInventorySlotAtScreenPosition(int screenX, int screenY) {
         return inventoryHudRenderer.getSlotAtScreenPosition(screenX, screenY, inventoryState);
     }
@@ -210,10 +215,27 @@ public class GameRenderer {
         return inventoryHudRenderer.isInsidePanel(screenX, screenY, inventoryState);
     }
 
-    private void renderHud(float delta) {
+    private void renderHud(float delta, Player player) {
         hudCamera.update();
         batch.setProjectionMatrix(hudCamera.combined);
         inventoryHudRenderer.render(batch, shapeRenderer, hudCamera, hudFont, delta, inventoryState);
+        renderDebugOverlay(player);
+    }
+
+    private void renderDebugOverlay(Player player) {
+        if (!debugOverlayVisible || player == null) {
+            return;
+        }
+
+        batch.begin();
+        hudFont.getData().setScale(0.8f);
+        hudFont.setColor(1f, 1f, 0.35f, 1f);
+        hudFont.draw(batch, String.format("x: %.1f", player.x), 16f, Gdx.graphics.getHeight() - 18f);
+        hudFont.draw(batch, String.format("y: %.1f", player.y), 16f, Gdx.graphics.getHeight() - 42f);
+        hudFont.draw(batch, "F3 - hide coords", 16f, Gdx.graphics.getHeight() - 66f);
+        hudFont.getData().setScale(1f);
+        hudFont.setColor(1f, 1f, 1f, 1f);
+        batch.end();
     }
 
     private void renderHealthBars(Player player, Map<Integer, RemotePlayer> remotePlayers, NpcManager npcManager) {
@@ -293,5 +315,9 @@ public class GameRenderer {
 
     public void renderStatus(String message) {
         renderCenteredMessage(message);
+    }
+
+    public SpriteBatch getBatch() {
+        return batch;
     }
 }
