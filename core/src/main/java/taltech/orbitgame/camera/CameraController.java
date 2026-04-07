@@ -10,6 +10,9 @@ import taltech.orbitgame.world.Player;
 public class CameraController {
 
     private final OrthographicCamera camera;
+    private static final float MIN_ZOOM = 0.6f;
+    private static final float MAX_ZOOM = 1.0f;
+    private static final float ZOOM_STEP = 0.1f;
 
     public CameraController(OrthographicCamera camera) {
         this.camera = camera;
@@ -19,8 +22,8 @@ public class CameraController {
      * Update camera position to follow the player within map bounds
      */
     public void updateCamera(Player player, float mapWidthPx, float mapHeightPx) {
-        float halfW = camera.viewportWidth * 0.5f;
-        float halfH = camera.viewportHeight * 0.5f;
+        float halfW = camera.viewportWidth * camera.zoom * 0.5f;
+        float halfH = camera.viewportHeight * camera.zoom * 0.5f;
 
         float targetX = player.x + player.getWidth() * 0.5f;
         float targetY = player.y + player.getHeight() * 0.5f;
@@ -42,5 +45,13 @@ public class CameraController {
 
     public OrthographicCamera getCamera() {
         return camera;
+    }
+
+    public void applyZoom(float scrollAmount) {
+        if (scrollAmount == 0f) {
+            return;
+        }
+        float target = camera.zoom + scrollAmount * ZOOM_STEP;
+        camera.zoom = MathUtils.clamp(target, MIN_ZOOM, MAX_ZOOM);
     }
 }

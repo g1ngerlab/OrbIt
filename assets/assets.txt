@@ -11,6 +11,13 @@ LobbyMusic/joon-1493758854.mp3
 MainMenuAssets/orbit.png
 Space Background Laptop.gif
 UI/inventory_border.png
+bunny/BUNNY_CHARACTER.png
+bunny/Burger_to_throw.png
+bunny/attack_bunny.png
+bunny/back_bunny.png
+bunny/forward_bunny.png
+bunny/idle_bunny.png
+bunny/right_bunny.png
 fonts/PixelifySans-VariableFont_wght.ttf
 guns/banaan_bullet2.png
 guns/crosshair.png

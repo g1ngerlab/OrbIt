@@ -16,6 +16,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.audio.AudioManager;
@@ -54,14 +55,17 @@ public class CharacterSelectScreen implements Screen {
 
         Table mainTable = new Table();
         mainTable.setFillParent(true);
+        mainTable.center();
         stage.addActor(mainTable);
 
         Label titleLabel = new Label("Select Character",
             new Label.LabelStyle(FontManager.getMenuFontLarge(), Color.WHITE));
-        mainTable.add(titleLabel).padTop(30).padBottom(40).colspan(2).row();
+        titleLabel.setAlignment(Align.center);
+        mainTable.add(titleLabel).padTop(30).padBottom(40).colspan(3).center().row();
 
         addCharacterOption(mainTable, CharacterType.MATH);
         addCharacterOption(mainTable, CharacterType.PUPU);
+        addCharacterOption(mainTable, CharacterType.EBANIBUNNY);
         mainTable.row();
 
         TextButton backButton = createButton("Back");
@@ -71,17 +75,18 @@ public class CharacterSelectScreen implements Screen {
                 game.setScreen(new MainMenuScreen((Main) game, lobbyInfoClient));
             }
         });
-        mainTable.add(backButton).padTop(30).size(400, 100).colspan(2).row();
+        mainTable.add(backButton).padTop(30).size(400, 100).colspan(3).center().row();
     }
 
     private void addCharacterOption(Table mainTable, CharacterType characterType) {
         Table characterTable = new Table();
+        characterTable.center();
         Texture preview = new Texture(Gdx.files.internal(characterType.getPreviewTexturePath()));
         preview.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
         previewTextures.add(preview);
 
         Image characterImage = new Image(new TextureRegionDrawable(preview));
-        characterTable.add(characterImage).size(240, 240).padBottom(15).row();
+        characterTable.add(characterImage).size(240, 240).padBottom(15).center().row();
 
         TextButton selectButton = createButton(characterType.getDisplayName());
         selectButton.addListener(new ClickListener() {
@@ -91,15 +96,16 @@ public class CharacterSelectScreen implements Screen {
                 game.setScreen(new MainMenuScreen((Main) game, lobbyInfoClient));
             }
         });
-        characterTable.add(selectButton).size(280, 90).row();
+        characterTable.add(selectButton).size(280, 90).center().row();
 
         int currentSelection = PlayerProfile.getSelectedCharacterId();
         if (currentSelection == characterType.getId()) {
             Label selectedLabel = new Label("Selected", new Label.LabelStyle(FontManager.getMenuFont(), Color.YELLOW));
-            characterTable.add(selectedLabel).padTop(10).row();
+            selectedLabel.setAlignment(Align.center);
+            characterTable.add(selectedLabel).padTop(10).center().row();
         }
 
-        mainTable.add(characterTable).pad(20);
+        mainTable.add(characterTable).pad(20).center();
     }
 
     private TextButton createButton(String text) {
@@ -113,7 +119,9 @@ public class CharacterSelectScreen implements Screen {
         style.up = new TextureRegionDrawable(buttonTexture);
         style.down = new TextureRegionDrawable(buttonPressedTexture);
 
-        return new TextButton(text, style);
+        TextButton button = new TextButton(text, style);
+        button.getLabel().setAlignment(Align.center);
+        return button;
     }
 
     @Override

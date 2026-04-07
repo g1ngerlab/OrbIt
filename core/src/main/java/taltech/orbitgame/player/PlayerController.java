@@ -105,7 +105,7 @@ public class PlayerController {
             && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
             && shotCooldownTimer <= 0f
             && isInLobby) {
-            if (player.getCharacterType() == taltech.orbitgame.player.CharacterType.PUPU) {
+            if (player.getCharacterType().hasAttackAnimation()) {
                 player.triggerAttack();
             }
             gameClient.sendShoot(localAimX, localAimY);

@@ -67,7 +67,14 @@ public class BulletCombatSystem {
 
             Vector2 velocity = new Vector2(direction).scl(bulletSpeed);
             int bulletId = nextBulletId++;
-            int bulletType = owner.getCharacterId() == 2 ? 2 : 1;
+            int bulletType;
+            if (owner.getCharacterId() == 2) {
+                bulletType = 2;
+            } else if (owner.getCharacterId() == 3) {
+                bulletType = 3;
+            } else {
+                bulletType = 1;
+            }
             bullets.put(bulletId, new ServerBullet(bulletId, shot.getOwnerClientId(), bulletType,
                 spawnPoint, velocity, bulletLifetime));
         }

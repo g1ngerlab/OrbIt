@@ -363,7 +363,8 @@ public class RemotePlayer {
         }
         if (animation == attackAnimation) {
             boolean aimRight = aimX >= getCenterX();
-            return aimRight ? !characterType.isBaseFacingLeft() : characterType.isBaseFacingLeft();
+            boolean flip = aimRight ? characterType.isBaseFacingLeft() : !characterType.isBaseFacingLeft();
+            return characterType.isAttackFlipInverted() ? !flip : flip;
         }
         if (direction == Direction.RIGHT) {
             return characterType.isBaseFacingLeft();

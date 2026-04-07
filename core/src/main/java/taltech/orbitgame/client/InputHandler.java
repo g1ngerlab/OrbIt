@@ -6,6 +6,7 @@ import taltech.orbitgame.network.Network.InputState;
 
 public class InputHandler implements InputProcessor {
     private final InputState state = new InputState();
+    private float scrollY = 0f;
 
     public InputHandler() {
     }
@@ -101,6 +102,13 @@ public class InputHandler implements InputProcessor {
 
     @Override
     public boolean scrolled(float amountX, float amountY) {
-        return false;
+        scrollY += amountY;
+        return true;
+    }
+
+    public float consumeScrollY() {
+        float value = scrollY;
+        scrollY = 0f;
+        return value;
     }
 }
