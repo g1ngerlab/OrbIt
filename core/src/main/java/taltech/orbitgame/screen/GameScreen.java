@@ -132,6 +132,11 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             debugCoordsVisible = !debugCoordsVisible;
         }
 
+        float scrollY = inputHandler.consumeScrollY();
+        if (scrollY != 0f) {
+            gameRenderer.getCameraController().applyZoom(scrollY);
+        }
+
         Gdx.gl.glClearColor(0, 0, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
         completeMapLoadingIfReady();

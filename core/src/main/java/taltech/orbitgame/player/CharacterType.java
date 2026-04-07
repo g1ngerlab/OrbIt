@@ -19,6 +19,7 @@ public enum CharacterType {
         0,
         0f,
         true,
+        false,
         1f / 1.5f
     ),
     PUPU(
@@ -38,6 +39,28 @@ public enum CharacterType {
         "pupu/attack_pupu.png",
         8,
         0.06f,
+        false,
+        true,
+        0.55f
+    ),
+    EBANIBUNNY(
+        3,
+        "EbaniBunny",
+        "bunny/BUNNY_CHARACTER.png",
+        "bunny/right_bunny.png",
+        "bunny/back_bunny.png",
+        "bunny/forward_bunny.png",
+        "bunny/idle_bunny.png",
+        6,
+        6,
+        7,
+        8,
+        0.07f,
+        0.09f,
+        "bunny/attack_bunny.png",
+        11,
+        0.06f,
+        false,
         false,
         0.55f
     );
@@ -59,6 +82,7 @@ public enum CharacterType {
     private final int attackFrames;
     private final float attackFrameTime;
     private final boolean baseFacingLeft;
+    private final boolean attackFlipInverted;
     private final float drawScale;
 
     CharacterType(int id,
@@ -78,6 +102,7 @@ public enum CharacterType {
                   int attackFrames,
                   float attackFrameTime,
                   boolean baseFacingLeft,
+                  boolean attackFlipInverted,
                   float drawScale) {
         this.id = id;
         this.displayName = displayName;
@@ -96,6 +121,7 @@ public enum CharacterType {
         this.attackFrames = attackFrames;
         this.attackFrameTime = attackFrameTime;
         this.baseFacingLeft = baseFacingLeft;
+        this.attackFlipInverted = attackFlipInverted;
         this.drawScale = drawScale;
     }
 
@@ -165,6 +191,10 @@ public enum CharacterType {
 
     public boolean isBaseFacingLeft() {
         return baseFacingLeft;
+    }
+
+    public boolean isAttackFlipInverted() {
+        return attackFlipInverted;
     }
 
     public float getDrawScale() {

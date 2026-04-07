@@ -121,7 +121,8 @@ public class GameRenderer {
         // Render remote players with weapons
         for (RemotePlayer remotePlayer : remotePlayers.values()) {
             remotePlayer.render(batch);
-            if (remotePlayer.getCharacterType() != CharacterType.PUPU) {
+            if (remotePlayer.getCharacterType() != CharacterType.PUPU
+                && remotePlayer.getCharacterType() != CharacterType.EBANIBUNNY) {
                 weaponRenderer.drawShotgun(
                     batch,
                     remotePlayer.getCenterX(),
@@ -134,7 +135,8 @@ public class GameRenderer {
 
         // Render local player with weapon
         player.render(batch);
-        if (player.getCharacterType() != CharacterType.PUPU) {
+        if (player.getCharacterType() != CharacterType.PUPU
+            && player.getCharacterType() != CharacterType.EBANIBUNNY) {
             weaponRenderer.drawShotgun(
                 batch,
                 player.getCenterX(),

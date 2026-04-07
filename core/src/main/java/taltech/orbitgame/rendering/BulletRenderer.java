@@ -1,6 +1,7 @@
 package taltech.orbitgame.rendering;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -31,6 +32,7 @@ public class BulletRenderer implements Disposable {
 
     private final Texture bulletTexture;
     private final Texture bananaBulletTexture;
+    private final Texture burgerBulletTexture;
     private final Map<Integer, ClientBullet> bullets;
 
     public BulletRenderer() {
@@ -46,6 +48,13 @@ public class BulletRenderer implements Disposable {
         }
         this.bananaBulletTexture = new Texture(Gdx.files.internal("guns/banaan_bullet2.png"));
         this.bananaBulletTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        FileHandle burgerHandle = Gdx.files.internal("bunny/Burger_to_throw.png");
+        if (burgerHandle.exists()) {
+            this.burgerBulletTexture = new Texture(burgerHandle);
+            this.burgerBulletTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        } else {
+            this.burgerBulletTexture = bananaBulletTexture;
+        }
         this.bullets = new HashMap<>();
     }
 
@@ -77,14 +86,18 @@ public class BulletRenderer implements Disposable {
      */
     public void render(SpriteBatch batch) {
         for (ClientBullet bullet : bullets.values()) {
-            Texture texture = bullet.bulletType == 2 ? bananaBulletTexture : bulletTexture;
-            float drawW = bullet.bulletType == 2
+            boolean isBanana = bullet.bulletType == 2;
+            boolean isBurger = bullet.bulletType == 3;
+            Texture texture = isBanana
+                ? bananaBulletTexture
+                : (isBurger ? burgerBulletTexture : bulletTexture);
+            float drawW = (isBanana || isBurger)
                 ? BANANA_DRAW_SIZE
                 : Math.max(6f, bullet.radius * BULLET_DRAW_SCALE);
             float drawH = drawW;
             float origin = drawW * 0.5f;
             float rotation = bullet.angleDeg;
-            if (bullet.bulletType == 2) {
+            if (isBanana || isBurger) {
                 bullet.spinDeg = (bullet.spinDeg + BANANA_SPIN_SPEED * Gdx.graphics.getDeltaTime()) % 360f;
                 rotation += bullet.spinDeg;
             }
@@ -139,5 +152,8 @@ public class BulletRenderer implements Disposable {
     public void dispose() {
         bulletTexture.dispose();
         bananaBulletTexture.dispose();
+        if (burgerBulletTexture != bananaBulletTexture) {
+            burgerBulletTexture.dispose();
+        }
     }
 }
