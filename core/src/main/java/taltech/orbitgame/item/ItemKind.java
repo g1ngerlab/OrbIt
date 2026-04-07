@@ -31,5 +31,18 @@ public enum ItemKind {
         }
         return NONE;
     }
+
+    public static ItemKind fromCode(String code) {
+        if (code == null) {
+            return NONE;
+        }
+        String normalized = code.trim();
+        for (ItemKind kind : values()) {
+            if (kind.code.equalsIgnoreCase(normalized)) {
+                return kind;
+            }
+        }
+        return NONE;
+    }
 }
 

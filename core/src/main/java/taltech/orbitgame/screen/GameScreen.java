@@ -14,6 +14,7 @@ import taltech.orbitgame.extraction.ExtractionPointRenderer;
 import taltech.orbitgame.extraction.ui.ExtractionUiHud;
 import taltech.orbitgame.inventory.InventoryFeature;
 import taltech.orbitgame.item.ItemKind;
+import taltech.orbitgame.loot.PlayerLootService;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
@@ -61,6 +62,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private boolean loggedEmptyNpcSnapshot = false;
     private boolean disposed = false;
     private final InventoryFeature inventoryFeature;
+    private final PlayerLootService playerLootService;
     private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
     private Throwable mapLoadError;
     private final long mapLoadStartedAtMs;
@@ -104,6 +106,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Initialize renderer
         this.gameRenderer = new GameRenderer(player.getCharacterType());
         this.inventoryFeature = new InventoryFeature();
+        this.playerLootService = new PlayerLootService();
 
         // Initialize extraction points system
         this.extractionManager = new ExtractionManager();
@@ -287,7 +290,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
                 gameClient,
                 gameClient.getClientId()
             );
-            this.extractionInputController.setExtractionListener(this::leaveToMainMenuLikeEscLeave);
+            this.extractionInputController.setExtractionListener(this::handleExtractionCompleted);
             this.extractionUiHud = new ExtractionUiHud(gameClient.getClientId());
 
             System.out.println("[GameScreen] Map ready. Collision grid=" + map.getCollisionGridSize()
@@ -591,6 +594,25 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             AudioManager.getInstance().playRandomLobbyMusic();
             LobbyInfoClient clientToUse = (lobbyInfoClient != null) ? lobbyInfoClient : new LobbyInfoClient();
             game.setScreen(new MainMenuScreen(game, clientToUse));
+        });
+    }
+
+    private void handleExtractionCompleted() {
+        if (leavingGame || disposed) {
+            return;
+        }
+
+        playerLootService.saveExtractedLoot(inventoryFeature.getState().getSlots(), new PlayerLootService.SaveCallback() {
+            @Override
+            public void onSuccess() {
+                leaveToMainMenuLikeEscLeave();
+            }
+
+            @Override
+            public void onError(String message) {
+                System.err.println("[GameScreen] Failed to save extracted loot: " + message);
+                leaveToMainMenuLikeEscLeave();
+            }
         });
     }
 
