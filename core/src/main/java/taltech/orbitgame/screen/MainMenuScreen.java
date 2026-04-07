@@ -109,7 +109,16 @@ public class MainMenuScreen implements Screen {
                 game.setScreen(new LobbyChoiceScreen(game, lobbyInfoClient));
             }
         });
-        rightTable.add(playButton).padBottom(20).size(playButton.getWidth(), playButton.getHeight()).row();
+        rightTable.add(playButton).padBottom(16).size(playButton.getWidth(), playButton.getHeight()).row();
+
+        TextButton inventoryButton = createButton("INVENTORY");
+        inventoryButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.setScreen(new InventoryMenuScreen(game, lobbyInfoClient));
+            }
+        });
+        rightTable.add(inventoryButton).padBottom(16).size(inventoryButton.getWidth(), inventoryButton.getHeight()).row();
 
         // Create Settings button
         TextButton settingsButton = createButton("SETTINGS");
@@ -119,7 +128,7 @@ public class MainMenuScreen implements Screen {
                 game.setScreen(new SettingsMenuScreen(game, lobbyInfoClient));
             }
         });
-        rightTable.add(settingsButton).padBottom(20).size(settingsButton.getWidth(), settingsButton.getHeight()).row();
+        rightTable.add(settingsButton).padBottom(16).size(settingsButton.getWidth(), settingsButton.getHeight()).row();
 
         // Create Leave button
         TextButton leaveButton = createButton("LEAVE");
@@ -129,7 +138,7 @@ public class MainMenuScreen implements Screen {
                 Gdx.app.exit();
             }
         });
-        rightTable.add(leaveButton).padBottom(20).size(leaveButton.getWidth(), leaveButton.getHeight()).row();
+        rightTable.add(leaveButton).padBottom(16).size(leaveButton.getWidth(), leaveButton.getHeight()).row();
     }
 
     private TextButton createButton(String text) {
@@ -142,9 +151,9 @@ public class MainMenuScreen implements Screen {
 
         TextButton button = new TextButton(text, buttonStyle);
 
-        // Make buttons smaller - scale to 60% of original size
-        float buttonWidth = buttonTexture.getWidth() * 0.6f;
-        float buttonHeight = buttonTexture.getHeight() * 0.6f;
+        // Keep all buttons compact so extra actions (inventory) fit without clutter.
+        float buttonWidth = buttonTexture.getWidth() * 0.55f;
+        float buttonHeight = buttonTexture.getHeight() * 0.55f;
         button.setSize(buttonWidth, buttonHeight);
 
         // Center text in the button by ensuring the label cell fills the button area
