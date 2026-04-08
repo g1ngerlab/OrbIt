@@ -83,6 +83,11 @@ public class Lobby {
     private final BulletCombatCallbacks bulletCombatCallbacks;
     private final NpcMeleeCallbacks npcMeleeCallbacks;
 
+    // Refactored components
+    private final LobbyBroadcaster broadcaster;
+    private final LobbyItemDropManager itemDropManager;
+    private final LobbyInventoryManager inventoryManager;
+
     private int nextBulletId;
     private int nextCorpseId;
     private int nextOrbId;
@@ -125,13 +130,18 @@ public class Lobby {
         int spawned = robotSpawner.spawnInitial(npcManager, collisionGrid, random);
         LOGGER.info(lobbyTag() + "Spawned robots: " + spawned);
         this.npcTick = 0;
+
+        // Initialize refactored components
+        this.broadcaster = new LobbyBroadcaster(players);
+        this.itemDropManager = new LobbyItemDropManager(orbs, collisionGrid, random, nextOrbId);
+        this.inventoryManager = new LobbyInventoryManager(players, playerInventories, broadcaster, itemDropManager, collisionGrid);
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
         LobbyPlayer player = createPlayer(clientId, playerName, 1, connection);
         players.put(clientId, player);
-        playerInventories.put(clientId, createEmptyInventory());
-        emptyTimestamp = 0; // Lobby is no longer empty
+        playerInventories.put(clientId, inventoryManager.createEmptyInventory());
+        emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
 
@@ -143,8 +153,8 @@ public class Lobby {
     public void addPlayer(int clientId, String playerName, int characterId, Connection connection) {
         LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
-        playerInventories.put(clientId, createEmptyInventory());
-        emptyTimestamp = 0; // Lobby is no longer empty
+        playerInventories.put(clientId, inventoryManager.createEmptyInventory());
+        emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
 
@@ -159,14 +169,12 @@ public class Lobby {
             playerInventories.remove(clientId);
             LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " left. Total players: " + players.size());
 
-            // Track when lobby became empty
             if (players.isEmpty() && emptyTimestamp == 0) {
                 emptyTimestamp = System.currentTimeMillis();
             }
 
-            // Notify all remaining players
             Network.PlayerLeft left = new Network.PlayerLeft(clientId);
-            broadcastToAll(left);
+            broadcaster.broadcastToAll(left);
         }
     }
 
@@ -175,14 +183,12 @@ public class Lobby {
         if (player != null) {
             player.setPositionAndAim(x, y, aimX, aimY);
 
-            // Broadcast position update to all other players
             Network.PlayerPositionUpdate update = new Network.PlayerPositionUpdate(clientId, x, y, moving, aimX, aimY);
-            broadcastToOthers(clientId, update);
+            broadcaster.broadcastToOthers(clientId, update);
 
-            // Send step sound if player is moving
             if (moving) {
                 Network.PlayerStep stepSound = new Network.PlayerStep(clientId, player.getPlayerName(), x, y);
-                broadcastToOthers(clientId, stepSound);
+                broadcaster.broadcastToOthers(clientId, stepSound);
             }
         }
     }
@@ -191,83 +197,26 @@ public class Lobby {
         if (players.containsKey(clientId)) {
             LobbyPlayer shooter = players.get(clientId);
 
-            // Queue the actual bullet
             pendingShots.offer(new PendingShot(clientId, targetX, targetY));
 
-            // Send sound event to all clients for audio playback
             Network.PlayerShoot shootEvent = new Network.PlayerShoot(
                 clientId,
                 shooter.getPlayerName(),
                 shooter.getX(),
                 shooter.getY()
             );
-            broadcastToAll(shootEvent);
+            broadcaster.broadcastToAll(shootEvent);
 
             LOGGER.fine(lobbyTag() + "Player " + shooter.getPlayerName() + " shot at (" + targetX + ", " + targetY + ")");
         }
     }
 
     public void dropInventoryItem(int clientId, int slotIndex) {
-        LobbyPlayer player = players.get(clientId);
-        ItemStack[] inventory = playerInventories.get(clientId);
-        if (player == null || inventory == null || slotIndex < 0 || slotIndex >= inventory.length) {
-            return;
-        }
-        ItemStack stack = inventory[slotIndex];
-        if (stack == null || stack.getAmount() <= 0) {
-            return;
-        }
-
-        if (!dropStackFromPlayerPosition(player, stack.getItemTypeId(), 1)) {
-            return;
-        }
-        stack.remove(1);
-        if (stack.isEmpty()) {
-            inventory[slotIndex] = null;
-        }
-        sendInventoryUpdate(clientId);
+        inventoryManager.dropInventoryItem(clientId, slotIndex);
     }
 
     public void moveInventoryItem(int clientId, int fromSlotIndex, int toSlotIndex) {
-        ItemStack[] inventory = playerInventories.get(clientId);
-        if (inventory == null
-            || fromSlotIndex < 0 || fromSlotIndex >= inventory.length
-            || toSlotIndex < 0 || toSlotIndex >= inventory.length
-            || fromSlotIndex == toSlotIndex) {
-            return;
-        }
-
-        ItemStack from = inventory[fromSlotIndex];
-        ItemStack to = inventory[toSlotIndex];
-        if (from == null || from.isEmpty()) {
-            return;
-        }
-
-        if (to == null || to.isEmpty()) {
-            inventory[toSlotIndex] = from;
-            inventory[fromSlotIndex] = null;
-            sendInventoryUpdate(clientId);
-            return;
-        }
-
-        if (from.getItemTypeId() == to.getItemTypeId()) {
-            int maxStack = Math.max(1, ItemRegistry.getMaxStack(from.getItemTypeId()));
-            int canMove = Math.min(from.getAmount(), Math.max(0, maxStack - to.getAmount()));
-            if (canMove > 0) {
-                to.add(canMove);
-                from.remove(canMove);
-                if (from.isEmpty()) {
-                    inventory[fromSlotIndex] = null;
-                }
-                sendInventoryUpdate(clientId);
-            }
-            return;
-        }
-
-        // Different item types -> swap slots.
-        inventory[fromSlotIndex] = to;
-        inventory[toSlotIndex] = from;
-        sendInventoryUpdate(clientId);
+        inventoryManager.moveInventoryItem(clientId, fromSlotIndex, toSlotIndex);
     }
 
     public void updateNpcs(float deltaTime) {
@@ -283,13 +232,13 @@ public class Lobby {
         );
         bulletCombatSystem.updateBullets(deltaTime, bullets, players, npcManager, collisionGrid, bulletCombatCallbacks);
         npcMeleeSystem.applyDamage(deltaTime, players, npcManager, npcMeleeCallbacks);
-        updateOrbsPhysics(deltaTime);
+        itemDropManager.updateOrbsPhysics(deltaTime);
         updateOrbPickups();
 
         npcTick++;
-        broadcastToAll(createNpcStateUpdate());
-        broadcastToAll(createBulletStateUpdate());
-        broadcastToAll(createOrbStateUpdate());
+        broadcaster.broadcastToAll(createNpcStateUpdate());
+        broadcaster.broadcastToAll(createBulletStateUpdate());
+        broadcaster.broadcastToAll(createOrbStateUpdate());
     }
 
     public boolean hasPlayer(int clientId) {
@@ -439,7 +388,7 @@ public class Lobby {
         connection.sendTCP(createBulletStateUpdate());
         connection.sendTCP(createCorpseStateUpdate());
         connection.sendTCP(createOrbStateUpdate());
-        connection.sendTCP(createInventoryStateUpdate(connection.getID()));
+        connection.sendTCP(inventoryManager.getInventoryStateUpdate(connection.getID()));
     }
 
     private void updateOrbPickups() {
@@ -460,7 +409,7 @@ public class Lobby {
             }
 
             if (collector != null) {
-                if (addItemToInventory(collector.getClientId(), ItemKind.ORB.getId(), 1)) {
+                if (inventoryManager.addItemToInventory(collector.getClientId(), ItemKind.ORB.getId(), 1)) {
                     toRemove.add(orb.getOrbId());
                 }
             }
