@@ -25,6 +25,7 @@ import taltech.orbitgame.Main;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
+import taltech.orbitgame.world.RemotePlayerRegistry;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -54,7 +55,8 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private PlayerController playerController;
     private final GameRenderer gameRenderer;
 
-    private final Map<Integer, RemotePlayer> remotePlayers;
+    private final RemotePlayerRegistry remotePlayers;
+    private final GameSessionExitCoordinator sessionExitCoordinator;
 
     private boolean isInLobby = false;
     private boolean isPaused = false;
@@ -96,7 +98,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         );
         this.player = new Player(characterType);
         this.player.setPlayerName(gameClient.getPlayerName());
-        this.remotePlayers = new HashMap<>();
+        this.remotePlayers = new RemotePlayerRegistry();
 
         // NPCs are now created and simulated only on server
         this.npcManager = new NpcManager();
@@ -110,6 +112,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         // Initialize extraction points system
         this.extractionManager = new ExtractionManager();
+        this.sessionExitCoordinator = new GameSessionExitCoordinator(game, lobbyInfoClient, playerLootService);
 
         this.mapLoadStartedAtMs = System.currentTimeMillis();
         this.mapLoadFuture = CompletableFuture.supplyAsync(MapManager::loadData, MAP_LOAD_EXECUTOR);
@@ -190,7 +193,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         gameRenderer.setOrbHudState(orbs);
         gameRenderer.setInventoryState(inventoryFeature.getState());
         gameRenderer.setDebugOverlayVisible(debugCoordsVisible);
-        gameRenderer.render(delta, isInLobby, player, remotePlayers, map, npcManager, corpses, playerController);
+        gameRenderer.render(delta, isInLobby, player, remotePlayers.asMap(), map, npcManager, corpses, playerController);
 
         // Render extraction points
         if (isInLobby
@@ -314,14 +317,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId) {
         Gdx.app.postRunnable(() -> {
             System.out.println("[GameScreen] Adding remote player: " + playerName + " at (" + x + ", " + y + ")");
-            RemotePlayer remotePlayer = new RemotePlayer(
-                clientId,
-                playerName,
-                x,
-                y,
-                CharacterType.fromId(characterId)
-            );
-            remotePlayers.put(clientId, remotePlayer);
+            remotePlayers.addPlayer(clientId, playerName, x, y, characterId);
         });
     }
 
@@ -329,7 +325,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onPlayerLeft(int clientId) {
         Gdx.app.postRunnable(() -> {
             System.out.println("[GameScreen] Removing remote player: " + clientId);
-            RemotePlayer removed = remotePlayers.remove(clientId);
+            RemotePlayer removed = remotePlayers.removePlayer(clientId);
             if (removed != null) {
                 removed.dispose();
             }
@@ -339,10 +335,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     @Override
     public void onPlayerPositionUpdate(int clientId, float x, float y, boolean moving, float aimX, float aimY) {
         Gdx.app.postRunnable(() -> {
-            RemotePlayer remotePlayer = remotePlayers.get(clientId);
-            if (remotePlayer != null) {
-                remotePlayer.updatePosition(x, y, moving, aimX, aimY);
-            }
+            remotePlayers.updatePosition(clientId, x, y, moving, aimX, aimY);
         });
     }
 
@@ -350,19 +343,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onLobbyState(Network.LobbyState lobbyState) {
         Gdx.app.postRunnable(() -> {
             System.out.println("[GameScreen] Received lobby state with " + lobbyState.players.size() + " players");
-            for (Network.PlayerInfo playerInfo : lobbyState.players) {
-                if (playerInfo.clientId != gameClient.getClientId()) {
-                    RemotePlayer remotePlayer = new RemotePlayer(
-                        playerInfo.clientId,
-                        playerInfo.playerName,
-                        playerInfo.x,
-                        playerInfo.y,
-                        CharacterType.fromId(playerInfo.characterId)
-                    );
-                    remotePlayer.updatePosition(playerInfo.x, playerInfo.y, false, playerInfo.aimX, playerInfo.aimY);
-                    remotePlayers.put(playerInfo.clientId, remotePlayer);
-                }
-            }
+            remotePlayers.applyLobbyState(lobbyState, gameClient.getClientId());
         });
     }
 
@@ -463,13 +444,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         Gdx.app.postRunnable(() -> {
             int myId = gameClient.getClientId();
             if (healthUpdate.clientId == myId) {
-                // Update local player health bar
                 player.setHealth(healthUpdate.health, healthUpdate.maxHealth);
             } else {
-                RemotePlayer remotePlayer = remotePlayers.get(healthUpdate.clientId);
-                if (remotePlayer != null) {
-                    remotePlayer.setHealth(healthUpdate.health, healthUpdate.maxHealth);
-                }
+                remotePlayers.updateHealth(healthUpdate.clientId, healthUpdate.health, healthUpdate.maxHealth);
             }
         });
     }
@@ -478,21 +455,16 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onEntityDied(Network.EntityDied entityDied) {
         Gdx.app.postRunnable(() -> {
             if (entityDied.entityType == Network.EntityDied.TYPE_NPC) {
-                // NPC will be removed from npcManager on the next snapshot update automatically.
                 System.out.println("[GameScreen] NPC #" + entityDied.entityId + " died.");
             } else if (entityDied.entityType == Network.EntityDied.TYPE_PLAYER) {
                 int myId = gameClient.getClientId();
                 if (entityDied.entityId == myId) {
-                    // Local player died - show death screen or return to menu
                     System.out.println("[GameScreen] You died!");
                     isInLobby = false;
-                    // Disconnect and return to main menu
                     gameClient.disconnect();
                 } else {
-                    // A remote player died - remove them from the world
-                    RemotePlayer removed = remotePlayers.remove(entityDied.entityId);
+                    RemotePlayer removed = remotePlayers.removePlayer(entityDied.entityId);
                     if (removed != null) {
-                        // Play player death sound
                         AudioManager.getInstance().playPlayerDeath(removed.x, removed.y,
                                                                     player.getCenterX(), player.getCenterY());
                         removed.dispose();
@@ -511,11 +483,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     public void onPlayerShoot(Network.PlayerShoot playerShoot) {
         Gdx.app.postRunnable(() -> {
             if (playerShoot.clientId == gameClient.getClientId()) {
-                // Own shot - play at full volume (this is handled in PlayerController)
                 return;
             }
-            // Other player's shot - play sound with distance attenuation
-            RemotePlayer shooter = remotePlayers.get(playerShoot.clientId);
+            RemotePlayer shooter = remotePlayers.getPlayer(playerShoot.clientId);
             if (shooter != null) {
                 shooter.triggerAttack();
             }
@@ -535,7 +505,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     @Override
     public void onPlayerStep(Network.PlayerStep playerStep) {
         Gdx.app.postRunnable(() -> {
-            RemotePlayer walker = remotePlayers.get(playerStep.clientId);
+            RemotePlayer walker = remotePlayers.getPlayer(playerStep.clientId);
             float walkerX = playerStep.playerX;
             float walkerY = playerStep.playerY;
 
@@ -591,15 +561,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         leavingGame = true;
         isPaused = true;
 
-        Gdx.app.postRunnable(() -> {
-            if (!disposed) {
-                dispose();
-            }
-            AudioManager.getInstance().stopCurrentMusic();
-            AudioManager.getInstance().playRandomLobbyMusic();
-            LobbyInfoClient clientToUse = (lobbyInfoClient != null) ? lobbyInfoClient : new LobbyInfoClient();
-            game.setScreen(new MainMenuScreen(game, clientToUse));
-        });
+        sessionExitCoordinator.leaveToMainMenu(this::isDisposed, this::dispose);
     }
 
     private void handleExtractionCompleted() {
@@ -607,18 +569,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             return;
         }
 
-        playerLootService.saveExtractedLoot(inventoryFeature.getState().getSlots(), new PlayerLootService.SaveCallback() {
-            @Override
-            public void onSuccess() {
-                leaveToMainMenuLikeEscLeave();
-            }
-
-            @Override
-            public void onError(String message) {
-                System.err.println("[GameScreen] Failed to save extracted loot: " + message);
-                leaveToMainMenuLikeEscLeave();
-            }
-        });
+        sessionExitCoordinator.saveExtractedLootAndLeave(
+            inventoryFeature.getState().getSlots(),
+            this::leaveToMainMenuLikeEscLeave
+        );
     }
 
 }
