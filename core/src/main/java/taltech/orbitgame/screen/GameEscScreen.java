@@ -3,9 +3,7 @@ package taltech.orbitgame.screen;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
@@ -25,6 +23,9 @@ import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.util.FontManager;
 
 public class GameEscScreen implements Screen {
+    private static final float ESC_BUTTON_WIDTH = 260f;
+    private static final float ESC_BUTTON_HEIGHT = 60f;
+    private static final float ESC_BUTTON_FONT_SCALE = 0.78f;
 
     private final Main game;
     private final GameScreen gameScreen;
@@ -69,6 +70,7 @@ public class GameEscScreen implements Screen {
         table.center();
 
         TextButton resumeButton = new TextButton("Resume", buttonStyle);
+        resumeButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         resumeButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -77,6 +79,7 @@ public class GameEscScreen implements Screen {
         });
 
         TextButton optionsButton = new TextButton("Options", buttonStyle);
+        optionsButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         optionsButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -84,7 +87,17 @@ public class GameEscScreen implements Screen {
             }
         });
 
+        TextButton skipTimerButton = new TextButton("Skip to Freeze Test", buttonStyle);
+        skipTimerButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
+        skipTimerButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                gameScreen.skipLobbyTimerToFinalMinuteForTesting();
+            }
+        });
+
         TextButton leaveButton = new TextButton("Leave", buttonStyle);
+        leaveButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         leaveButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -92,9 +105,10 @@ public class GameEscScreen implements Screen {
             }
         });
 
-        table.add(resumeButton).padBottom(20).row();
-        table.add(optionsButton).padBottom(20).row();
-        table.add(leaveButton).row();
+        table.add(resumeButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
+        table.add(optionsButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
+        table.add(skipTimerButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
+        table.add(leaveButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).row();
 
         stage.addActor(table);
     }

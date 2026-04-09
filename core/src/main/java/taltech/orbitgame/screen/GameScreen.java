@@ -63,8 +63,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private boolean leavingGame = false;
     private boolean loggedEmptyNpcSnapshot = false;
     private boolean disposed = false;
+    private int lobbyTimerRemainingMs = 10 * 60 * 1000;
+    private boolean lobbyFreezePhase = false;
     private final InventoryFeature inventoryFeature;
-    private final PlayerLootService playerLootService;
     private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
     private Throwable mapLoadError;
     private final long mapLoadStartedAtMs;
@@ -108,7 +109,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Initialize renderer
         this.gameRenderer = new GameRenderer(player.getCharacterType());
         this.inventoryFeature = new InventoryFeature();
-        this.playerLootService = new PlayerLootService();
+        PlayerLootService playerLootService = new PlayerLootService();
 
         // Initialize extraction points system
         this.extractionManager = new ExtractionManager();
@@ -178,6 +179,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             playerController.update(delta, isInLobby);
 
             // Update extraction input
+            if (extractionInputController != null) {
+                extractionInputController.setExtractionLocked(lobbyFreezePhase);
+            }
             extractionInputController.update(delta, player.getCenterX(), player.getCenterY());
 
             for (RemotePlayer remotePlayer : remotePlayers.values()) {
@@ -192,6 +196,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         gameRenderer.setOrbHudState(orbs);
         gameRenderer.setInventoryState(inventoryFeature.getState());
+        gameRenderer.setLobbyTimerState(lobbyTimerRemainingMs, lobbyFreezePhase);
         gameRenderer.setDebugOverlayVisible(debugCoordsVisible);
         gameRenderer.render(delta, isInLobby, player, remotePlayers.asMap(), map, npcManager, corpses, playerController);
 
@@ -361,6 +366,25 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     }
 
     @Override
+    public void onLobbyTimerState(Network.LobbyTimerState timerState) {
+        Gdx.app.postRunnable(() -> {
+            if (timerState == null) {
+                return;
+            }
+            lobbyTimerRemainingMs = Math.max(0, timerState.remainingMs);
+            lobbyFreezePhase = timerState.freezePhase;
+            if (timerState.freezePhase && extractionInputController != null) {
+                extractionInputController.setExtractionLocked(true);
+            }
+        });
+    }
+
+    @Override
+    public void onLobbyClosed(Network.LobbyClosed lobbyClosed) {
+        Gdx.app.postRunnable(() -> leaveToMainMenuLikeEscLeave());
+    }
+
+    @Override
     public void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate) {
         Gdx.app.postRunnable(() -> {
             if ((npcStateUpdate.npcs == null || npcStateUpdate.npcs.isEmpty()) && !loggedEmptyNpcSnapshot) {
@@ -461,7 +485,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
                 if (entityDied.entityId == myId) {
                     System.out.println("[GameScreen] You died!");
                     isInLobby = false;
-                    gameClient.disconnect();
+                    leaveToMainMenuLikeEscLeave();
                 } else {
                     RemotePlayer removed = remotePlayers.removePlayer(entityDied.entityId);
                     if (removed != null) {
@@ -552,6 +576,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     public boolean isDisposed() {
         return disposed;
+    }
+
+    public void skipLobbyTimerToFinalMinuteForTesting() {
+        gameClient.sendToServer(new Network.LobbyTimerDebugSkip());
     }
 
     private void leaveToMainMenuLikeEscLeave() {

@@ -135,6 +135,11 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
+        if (object instanceof Network.LobbyTimerDebugSkip) {
+            handleLobbyTimerDebugSkip(connection);
+            return;
+        }
+
         if (object instanceof Network.InputState) {
             handleInputState(connection, (Network.InputState) object);
         }
@@ -220,7 +225,7 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
-        int characterId = joinLobby == null ? 1 : Math.max(1, joinLobby.characterId);
+        int characterId = Math.max(1, joinLobby.characterId);
         lobby.addPlayer(clientId, playerName, characterId, connection);
         clientToLobby.put(clientId, joinLobby.lobbyId);
     }
@@ -255,6 +260,13 @@ public class PlayerInputListener implements Listener {
                 moveInventoryItemRequest.fromSlotIndex,
                 moveInventoryItemRequest.toSlotIndex
             );
+        }
+    }
+
+    private void handleLobbyTimerDebugSkip(Connection connection) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby != null) {
+            lobby.forceAdvanceToFinalMinuteForTesting();
         }
     }
 
@@ -295,7 +307,7 @@ public class PlayerInputListener implements Listener {
             normalized = normalized.substring(0, 16);
         }
 
-        if (!normalized.matches("[A-Za-z0-9_]+")) {
+        if (!normalized.matches("\\w+")) {
             return "Player" + connectionId;
         }
 
@@ -307,8 +319,16 @@ public class PlayerInputListener implements Listener {
     private void startNpcLoop() {
         long periodMs = 1000L / NPC_TICK_RATE;
         npcLoop.scheduleAtFixedRate(() -> {
+            ArrayList<Integer> closedLobbies = new ArrayList<>();
             for (Lobby lobby : lobbies.values()) {
+                lobby.updateLobbyTimer(NPC_DELTA_TIME);
                 lobby.updateNpcs(NPC_DELTA_TIME);
+                if (lobby.isClosed()) {
+                    closedLobbies.add(lobby.getLobbyId());
+                }
+            }
+            for (Integer lobbyId : closedLobbies) {
+                lobbies.remove(lobbyId);
             }
             // Clean up lobbies that have been empty for too long
             lobbies.entrySet().removeIf(entry -> {
