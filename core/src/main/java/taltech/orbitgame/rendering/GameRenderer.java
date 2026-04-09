@@ -1,6 +1,8 @@
 package taltech.orbitgame.rendering;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
@@ -55,11 +57,14 @@ public class GameRenderer {
     private static final float ORB_DROP_HOP_DURATION = 1.25f;
     private static final float ORB_DROP_HOP_HEIGHT = 14f;
     private static final float ORB_LEVITATION_HEIGHT = 3.5f;
+    private static final float FREEZE_OVERLAY_ALPHA = 0.08f;
     private float orbAnimTime = 0f;
     private Map<Integer, Network.OrbState> currentOrbs = Collections.emptyMap();
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
     private InventoryState inventoryState;
     private boolean debugOverlayVisible;
+    private int lobbyTimerRemainingMs = 10 * 60 * 1000;
+    private boolean lobbyFreezePhase;
 
     public GameRenderer(CharacterType localCharacterType) {
         this.localCharacterType = localCharacterType == null ? CharacterType.MATH : localCharacterType;
@@ -209,6 +214,11 @@ public class GameRenderer {
         this.debugOverlayVisible = debugOverlayVisible;
     }
 
+    public void setLobbyTimerState(int remainingMs, boolean freezePhase) {
+        this.lobbyTimerRemainingMs = Math.max(0, remainingMs);
+        this.lobbyFreezePhase = freezePhase;
+    }
+
     public int getInventorySlotAtScreenPosition(int screenX, int screenY) {
         return inventoryHudRenderer.getSlotAtScreenPosition(screenX, screenY, inventoryState);
     }
@@ -220,8 +230,46 @@ public class GameRenderer {
     private void renderHud(float delta, Player player) {
         hudCamera.update();
         batch.setProjectionMatrix(hudCamera.combined);
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
         inventoryHudRenderer.render(batch, shapeRenderer, hudCamera, hudFont, delta, inventoryState);
+        renderLobbyTimerOverlay();
+        renderLobbyTimer();
         renderDebugOverlay(player);
+    }
+
+    private void renderLobbyTimerOverlay() {
+        if (!lobbyFreezePhase) {
+            return;
+        }
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0.22f, 0.52f, 0.98f, FREEZE_OVERLAY_ALPHA);
+        shapeRenderer.rect(0f, 0f, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        shapeRenderer.setColor(Color.WHITE);
+    }
+
+    private void renderLobbyTimer() {
+        batch.begin();
+        hudFont.getData().setScale(1f);
+        String timerText = formatTimer(lobbyTimerRemainingMs);
+        layout.setText(hudFont, timerText);
+        hudFont.setColor(lobbyFreezePhase ? 0.85f : 1f, lobbyFreezePhase ? 0.95f : 1f, 1f, 1f);
+        float x = (Gdx.graphics.getWidth() - layout.width) * 0.5f;
+        float y = Gdx.graphics.getHeight() - 18f;
+        hudFont.draw(batch, timerText, x, y);
+        hudFont.setColor(1f, 1f, 1f, 1f);
+        batch.end();
+    }
+
+    private String formatTimer(int remainingMs) {
+        int totalSeconds = Math.max(0, remainingMs / 1000);
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        return String.format("Lobby %02d:%02d", minutes, seconds);
     }
 
     private void renderDebugOverlay(Player player) {

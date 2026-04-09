@@ -65,6 +65,9 @@ public class Lobby {
     private static final int INVENTORY_SLOTS = 12;
     private static final float PLAYER_DROP_MIN_DISTANCE = 44f;
     private static final float PLAYER_DROP_MAX_DISTANCE = 72f;
+    private static final long LOBBY_DURATION_MS = 10L * 60L * 1000L;
+    private static final long FREEZE_PHASE_START_MS = 60L * 1000L;
+    private static final long FREEZE_DAMAGE_DURATION_MS = 10L * 1000L;
 
     private final int lobbyId;
     private final String lobbyName;
@@ -92,6 +95,9 @@ public class Lobby {
     private int nextCorpseId;
     private int nextOrbId;
     private long npcTick;
+    private long lobbyElapsedMs;
+    private long freezeDamageElapsedMs;
+    private boolean lobbyClosed;
     /** Timestamp (System.currentTimeMillis) when lobby became empty, or 0 if not empty */
     private long emptyTimestamp = 0;
 
@@ -127,6 +133,9 @@ public class Lobby {
         this.nextBulletId = 1;
         this.nextCorpseId = 1;
         this.nextOrbId = 1;
+        this.lobbyElapsedMs = 0L;
+        this.freezeDamageElapsedMs = 0L;
+        this.lobbyClosed = false;
         int spawned = robotSpawner.spawnInitial(npcManager, collisionGrid, random);
         LOGGER.info(lobbyTag() + "Spawned robots: " + spawned);
         this.npcTick = 0;
@@ -138,6 +147,9 @@ public class Lobby {
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
+        if (lobbyClosed) {
+            return;
+        }
         LobbyPlayer player = createPlayer(clientId, playerName, 1, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, inventoryManager.createEmptyInventory());
@@ -151,6 +163,9 @@ public class Lobby {
     }
 
     public void addPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        if (lobbyClosed) {
+            return;
+        }
         LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, inventoryManager.createEmptyInventory());
@@ -171,6 +186,7 @@ public class Lobby {
 
             if (players.isEmpty() && emptyTimestamp == 0) {
                 emptyTimestamp = System.currentTimeMillis();
+                closeLobby("empty");
             }
 
             Network.PlayerLeft left = new Network.PlayerLeft(clientId);
@@ -220,6 +236,9 @@ public class Lobby {
     }
 
     public void updateNpcs(float deltaTime) {
+        if (lobbyClosed) {
+            return;
+        }
         List<Vector2> playerPositions = collectPlayerPositions();
 
         npcManager.update(deltaTime, playerPositions, collisionGrid::isBlocked);
@@ -239,6 +258,77 @@ public class Lobby {
         broadcaster.broadcastToAll(createNpcStateUpdate());
         broadcaster.broadcastToAll(createBulletStateUpdate());
         broadcaster.broadcastToAll(createOrbStateUpdate());
+    }
+
+    public void updateLobbyTimer(float deltaTime) {
+        if (lobbyClosed) {
+            return;
+        }
+
+        lobbyElapsedMs = Math.min(LOBBY_DURATION_MS, lobbyElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
+        long remainingMs = getRemainingLobbyTimeMs();
+        boolean freezePhase = remainingMs <= FREEZE_PHASE_START_MS;
+
+        if (freezePhase && freezeDamageElapsedMs < FREEZE_DAMAGE_DURATION_MS && !players.isEmpty()) {
+            applyFreezeDamage(deltaTime);
+            freezeDamageElapsedMs = Math.min(FREEZE_DAMAGE_DURATION_MS, freezeDamageElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
+        }
+
+        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) remainingMs, freezePhase));
+
+        if (remainingMs <= 0L) {
+            closeLobby("timer_expired");
+        }
+    }
+
+    public void forceAdvanceToFinalMinuteForTesting() {
+        if (lobbyClosed) {
+            return;
+        }
+        lobbyElapsedMs = Math.max(lobbyElapsedMs, LOBBY_DURATION_MS - FREEZE_PHASE_START_MS);
+        freezeDamageElapsedMs = 0L;
+        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) getRemainingLobbyTimeMs(), true));
+    }
+
+    public boolean isClosed() {
+        return lobbyClosed;
+    }
+
+    public long getRemainingLobbyTimeMs() {
+        return Math.max(0L, LOBBY_DURATION_MS - lobbyElapsedMs);
+    }
+
+    private void applyFreezeDamage(float deltaTime) {
+        if (players.isEmpty()) {
+            return;
+        }
+
+        float damageFactor = Math.max(0f, deltaTime / (FREEZE_DAMAGE_DURATION_MS / 1000f));
+        List<LobbyPlayer> killedPlayers = new ArrayList<>();
+
+        for (LobbyPlayer player : new ArrayList<>(players.values())) {
+            if (player.isDead()) {
+                continue;
+            }
+            float damage = player.getMaxHealth() * damageFactor;
+            player.takeDamage(damage);
+            broadcastPlayerHealth(player);
+            if (player.isDead()) {
+                killedPlayers.add(player);
+            }
+        }
+
+        for (LobbyPlayer killedPlayer : killedPlayers) {
+            onPlayerKilled(killedPlayer, "freeze");
+        }
+    }
+
+    private void closeLobby(String reason) {
+        if (lobbyClosed) {
+            return;
+        }
+        lobbyClosed = true;
+        broadcaster.broadcastToAll(new Network.LobbyClosed(lobbyId, reason));
     }
 
     public boolean hasPlayer(int clientId) {
@@ -505,13 +595,16 @@ public class Lobby {
 
     private void onPlayerKilled(LobbyPlayer player, String reason) {
         LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " killed by " + reason + "!");
-        if ("bullet".equals(reason)) {
+        if ("bullet".equals(reason) || "freeze".equals(reason)) {
             dropAllInventoryItems(player);
         }
         addPlayerCorpse(player);
-        broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId()));
+        broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId()));
         players.remove(player.getClientId());
         playerInventories.remove(player.getClientId());
+        if (players.isEmpty()) {
+            closeLobby("empty");
+        }
         if ("NPC melee".equals(reason)) {
             broadcastNpcAttack();
         }

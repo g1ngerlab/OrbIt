@@ -25,6 +25,8 @@ public class GameClient {
         void onPlayerPositionUpdate(int clientId, float x, float y, boolean moving, float aimX, float aimY);
         void onLobbyState(Network.LobbyState lobbyState);
         void onLobbyJoinConfirmed(float spawnX, float spawnY);
+        void onLobbyTimerState(Network.LobbyTimerState timerState);
+        void onLobbyClosed(Network.LobbyClosed lobbyClosed);
         void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate);
         void onNpcAttack(Network.NpcAttack npcAttack);
         void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
@@ -114,6 +116,18 @@ public class GameClient {
                     System.out.println("[Client] Lobby join confirmed at spawn (" + confirmed.spawnX + ", " + confirmed.spawnY + ")");
                     if (gameListener != null) {
                         gameListener.onLobbyJoinConfirmed(confirmed.spawnX, confirmed.spawnY);
+                    }
+                }
+                if (object instanceof Network.LobbyTimerState) {
+                    Network.LobbyTimerState timerState = (Network.LobbyTimerState) object;
+                    if (gameListener != null) {
+                        gameListener.onLobbyTimerState(timerState);
+                    }
+                }
+                if (object instanceof Network.LobbyClosed) {
+                    Network.LobbyClosed lobbyClosed = (Network.LobbyClosed) object;
+                    if (gameListener != null) {
+                        gameListener.onLobbyClosed(lobbyClosed);
                     }
                 }
                 if (object instanceof Network.NpcStateUpdate) {

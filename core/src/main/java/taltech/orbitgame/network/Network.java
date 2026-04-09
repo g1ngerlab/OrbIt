@@ -26,6 +26,9 @@ public class Network {
         kryo.register(java.util.ArrayList.class);
         kryo.register(PlayerInfo.class);
         kryo.register(LobbyJoinConfirmed.class);
+        kryo.register(LobbyTimerState.class);
+        kryo.register(LobbyClosed.class);
+        kryo.register(LobbyTimerDebugSkip.class);
         kryo.register(RequestLobbyInfo.class);
         kryo.register(LobbyInfo.class);
         kryo.register(java.util.HashMap.class);
@@ -237,6 +240,44 @@ public class Network {
             this.spawnX = spawnX;
             this.spawnY = spawnY;
         }
+    }
+
+    /**
+     * Sent by the server to keep clients informed about lobby lifetime.
+     */
+    public static class LobbyTimerState {
+        public int lobbyId;
+        public int remainingMs;
+        public boolean freezePhase;
+
+        public LobbyTimerState() {}
+
+        public LobbyTimerState(int lobbyId, int remainingMs, boolean freezePhase) {
+            this.lobbyId = lobbyId;
+            this.remainingMs = remainingMs;
+            this.freezePhase = freezePhase;
+        }
+    }
+
+    /**
+     * Sent by the server when a lobby is closing.
+     */
+    public static class LobbyClosed {
+        public int lobbyId;
+        public String reason;
+
+        public LobbyClosed() {}
+
+        public LobbyClosed(int lobbyId, String reason) {
+            this.lobbyId = lobbyId;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * Debug-only request to jump lobby timer to the final minute.
+     */
+    public static class LobbyTimerDebugSkip {
     }
 
     /**

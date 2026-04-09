@@ -25,6 +25,7 @@ public class ExtractionInputController {
     private float holdProgressSeconds = 0f;
     private float localRemainingTime = 0f;
     private ExtractionListener extractionListener;
+    private boolean extractionLocked = false;
 
     private static final float EXTRACTION_DURATION_SECONDS = 10f;
     private static final float HOLD_RADIUS_MAX = 48f;
@@ -42,6 +43,14 @@ public class ExtractionInputController {
     public void update(float delta, float playerX, float playerY) {
         this.currentPlayerX = playerX;
         this.currentPlayerY = playerY;
+
+        if (extractionLocked) {
+            nearbyPoint = null;
+            if (extractingPoint != null) {
+                cancelExtraction();
+            }
+            return;
+        }
 
         // Find nearby extraction point
         ExtractionPoint point = null;
@@ -82,6 +91,9 @@ public class ExtractionInputController {
      * Handle E key press
      */
     private void handleEKeyPress() {
+        if (extractionLocked) {
+            return;
+        }
         if (extractingPoint == null
             && nearbyPoint != null
             && nearbyPoint.getCurrentState() == ExtractionPoint.State.AVAILABLE
@@ -146,6 +158,13 @@ public class ExtractionInputController {
 
     public void setExtractionListener(ExtractionListener extractionListener) {
         this.extractionListener = extractionListener;
+    }
+
+    public void setExtractionLocked(boolean extractionLocked) {
+        this.extractionLocked = extractionLocked;
+        if (extractionLocked) {
+            cancelExtraction();
+        }
     }
 
     /**
