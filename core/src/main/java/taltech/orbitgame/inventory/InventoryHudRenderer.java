@@ -28,6 +28,8 @@ public class InventoryHudRenderer {
     private static final float SLIDE_SPEED = 11f;
     private static final float ITEM_ICON_SCALE = 0.74f;
     private static final float HINT_FONT_SCALE = 0.9f;
+    private static final float SECTION_GAP = 18f;
+    private static final float LABEL_FONT_SCALE = 0.75f;
     private static final int TILE_SIZE = 64;
     private static final int TILE_COLUMN = 2;
     private static final int TILE_ROW_FROM_TOP = 6;
@@ -65,10 +67,17 @@ public class InventoryHudRenderer {
             return;
         }
 
-        float panelWidth = PAD_X * 2f + InventoryState.COLUMNS * CELL_SIZE
-            + (InventoryState.COLUMNS - 1) * CELL_SPACING;
-        float panelHeight = PAD_Y * 2f + InventoryState.ROWS * CELL_SIZE
-            + (InventoryState.ROWS - 1) * CELL_SPACING;
+        float step = CELL_SIZE + CELL_SPACING;
+        float mainGridWidth = InventoryLayout.MAIN_COLUMNS * CELL_SIZE
+            + (InventoryLayout.MAIN_COLUMNS - 1) * CELL_SPACING;
+        float weaponGridWidth = InventoryLayout.WEAPON_SLOT_COUNT * CELL_SIZE
+            + (InventoryLayout.WEAPON_SLOT_COUNT - 1) * CELL_SPACING;
+        float panelWidth = PAD_X * 2f + Math.max(mainGridWidth, weaponGridWidth);
+        float panelHeight = PAD_Y * 2f
+            + InventoryLayout.MAIN_ROWS * CELL_SIZE
+            + (InventoryLayout.MAIN_ROWS - 1) * CELL_SPACING
+            + SECTION_GAP
+            + CELL_SIZE;
         float targetY = state.isVisible()
             ? Gdx.graphics.getHeight() - TOP_MARGIN - panelHeight
             : Gdx.graphics.getHeight() + panelHeight + 14f;
@@ -87,11 +96,14 @@ public class InventoryHudRenderer {
         batch.draw(cellRegion, panelX - 8f, panelY - 8f, panelWidth + 16f, panelHeight + 16f);
         batch.setColor(1f, 1f, 1f, 1f);
 
-        float step = CELL_SIZE + CELL_SPACING;
         ItemStack[] slots = state.getSlots();
-        for (int row = 0; row < InventoryState.ROWS; row++) {
-            for (int col = 0; col < InventoryState.COLUMNS; col++) {
-                int slotIndex = row * InventoryState.COLUMNS + col;
+        float mainSectionHeight = InventoryLayout.MAIN_ROWS * CELL_SIZE
+            + (InventoryLayout.MAIN_ROWS - 1) * CELL_SPACING;
+        float weaponSectionY = panelY + PAD_Y + mainSectionHeight + SECTION_GAP;
+
+        for (int row = 0; row < InventoryLayout.MAIN_ROWS; row++) {
+            for (int col = 0; col < InventoryLayout.MAIN_COLUMNS; col++) {
+                int slotIndex = row * InventoryLayout.MAIN_COLUMNS + col;
                 float slotX = panelX + PAD_X + col * step;
                 float slotY = panelY + PAD_Y + row * step;
 
@@ -122,8 +134,38 @@ public class InventoryHudRenderer {
             }
         }
 
+        hudFont.getData().setScale(LABEL_FONT_SCALE);
+        hudFont.draw(batch, "WEAPON", panelX + PAD_X, weaponSectionY + CELL_SIZE + 12f);
+        hudFont.getData().setScale(1f);
+
+        for (int i = 0; i < InventoryLayout.WEAPON_SLOT_COUNT; i++) {
+            int slotIndex = InventoryLayout.MAIN_SLOT_COUNT + i;
+            float slotX = panelX + PAD_X + i * step;
+            float slotY = weaponSectionY;
+
+            batch.draw(cellRegion, slotX, slotY, CELL_SIZE, CELL_SIZE);
+            ItemStack stack = slots[slotIndex];
+            if (state.isDragging() && slotIndex == state.getDraggedFromSlot()) {
+                stack = null;
+            }
+            if (stack != null && stack.getAmount() > 0) {
+                float itemSize = CELL_SIZE * ITEM_ICON_SCALE;
+                float itemX = slotX + (CELL_SIZE - itemSize) * 0.5f;
+                float itemY = slotY + (CELL_SIZE - itemSize) * 0.5f;
+                Texture icon = itemIcons.get(stack.getItemTypeId());
+                if (icon != null) {
+                    batch.draw(icon, itemX, itemY, itemSize, itemSize);
+                } else {
+                    hudFont.draw(batch, "?", itemX + itemSize * 0.4f, itemY + itemSize * 0.7f);
+                }
+                if (stack.getAmount() > 1) {
+                    hudFont.draw(batch, String.valueOf(stack.getAmount()), slotX + CELL_SIZE - 20f, slotY + 18f);
+                }
+            }
+        }
+
         hudFont.getData().setScale(HINT_FONT_SCALE);
-        hudFont.draw(batch, "TAB - inventory, G - drop selected", panelX, panelY - 10f);
+        hudFont.draw(batch, "TAB - inventory, 1/2 - weapon slots, G - drop selected", panelX, panelY - 10f);
         hudFont.getData().setScale(1f);
 
         if (state.isDragging() && state.getDraggedStack() != null) {
@@ -144,10 +186,18 @@ public class InventoryHudRenderer {
 
         int selectedSlot = state.getSelectedSlot();
         if (selectedSlot >= 0 && selectedSlot < InventoryState.SLOT_COUNT) {
-            int selectedRow = selectedSlot / InventoryState.COLUMNS;
-            int selectedCol = selectedSlot % InventoryState.COLUMNS;
-            float selectedX = panelX + PAD_X + selectedCol * step;
-            float selectedY = panelY + PAD_Y + selectedRow * step;
+            float selectedX;
+            float selectedY;
+            if (InventoryLayout.isWeaponSlot(selectedSlot)) {
+                int weaponIndex = selectedSlot - InventoryLayout.MAIN_SLOT_COUNT;
+                selectedX = panelX + PAD_X + weaponIndex * step;
+                selectedY = weaponSectionY;
+            } else {
+                int selectedRow = selectedSlot / InventoryLayout.MAIN_COLUMNS;
+                int selectedCol = selectedSlot % InventoryLayout.MAIN_COLUMNS;
+                selectedX = panelX + PAD_X + selectedCol * step;
+                selectedY = panelY + PAD_Y + selectedRow * step;
+            }
 
             shapeRenderer.setProjectionMatrix(hudCamera.combined);
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
@@ -170,19 +220,34 @@ public class InventoryHudRenderer {
         float localX = screenX - (lastX + PAD_X);
         float localY = hudY - (lastY + PAD_Y);
         float step = CELL_SIZE + CELL_SPACING;
+        float mainSectionHeight = InventoryLayout.MAIN_ROWS * CELL_SIZE
+            + (InventoryLayout.MAIN_ROWS - 1) * CELL_SPACING;
+
+        float weaponLocalYStart = mainSectionHeight + SECTION_GAP;
+
+        int weaponCol = (int) (localX / step);
+        if (weaponCol >= 0 && weaponCol < InventoryLayout.WEAPON_SLOT_COUNT) {
+            float inCellX = localX - weaponCol * step;
+            float inCellY = localY - weaponLocalYStart;
+            if (inCellY >= 0f && inCellY <= CELL_SIZE && inCellX >= 0f && inCellX <= CELL_SIZE) {
+                return InventoryLayout.MAIN_SLOT_COUNT + weaponCol;
+            }
+        }
+
+        float mainLocalY = localY;
         int col = (int) (localX / step);
-        int row = (int) (localY / step);
-        if (col < 0 || col >= InventoryState.COLUMNS || row < 0 || row >= InventoryState.ROWS) {
+        int row = (int) (mainLocalY / step);
+        if (col < 0 || col >= InventoryLayout.MAIN_COLUMNS || row < 0 || row >= InventoryLayout.MAIN_ROWS) {
             return -1;
         }
 
         float inCellX = localX - col * step;
-        float inCellY = localY - row * step;
-        if (inCellX > CELL_SIZE || inCellY > CELL_SIZE) {
+        float inCellY = mainLocalY - row * step;
+        if (inCellX > CELL_SIZE || inCellY > CELL_SIZE || inCellX < 0f || inCellY < 0f) {
             return -1;
         }
 
-        return row * InventoryState.COLUMNS + col;
+        return row * InventoryLayout.MAIN_COLUMNS + col;
     }
 
     public boolean isInsidePanel(int screenX, int screenY, InventoryState state) {

@@ -1,6 +1,7 @@
 package server;
 
 import server.model.LobbyPlayer;
+import taltech.orbitgame.inventory.InventoryLayout;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.item.ItemRegistry;
 import taltech.orbitgame.item.ItemStack;
@@ -13,7 +14,7 @@ import java.util.Map;
  * Delegates to LobbyItemDropManager for dropping/spawning orbs.
  */
 public class LobbyInventoryManager {
-    private static final int INVENTORY_SLOTS = 12;
+    private static final int INVENTORY_SLOTS = InventoryLayout.TOTAL_SLOT_COUNT;
     private static final float PLAYER_WIDTH = 32f;
     private static final float PLAYER_HEIGHT = 48f;
     private static final float PLAYER_DROP_MIN_DISTANCE = 44f;
@@ -55,6 +56,9 @@ public class LobbyInventoryManager {
         int maxStack = Math.max(1, ItemRegistry.getMaxStack(itemTypeId));
 
         for (int i = 0; i < inventory.length; i++) {
+            if (!InventoryLayout.isMainSlot(i)) {
+                continue;
+            }
             ItemStack slot = inventory[i];
             if (slot == null || slot.getItemTypeId() != itemTypeId || slot.getAmount() >= maxStack) {
                 continue;
@@ -70,6 +74,9 @@ public class LobbyInventoryManager {
         }
 
         for (int i = 0; i < inventory.length; i++) {
+            if (!InventoryLayout.isMainSlot(i)) {
+                continue;
+            }
             if (inventory[i] == null || inventory[i].isEmpty()) {
                 int put = Math.min(remaining, maxStack);
                 inventory[i] = new ItemStack(itemTypeId, put);
@@ -93,6 +100,9 @@ public class LobbyInventoryManager {
         LobbyPlayer player = players.get(clientId);
         ItemStack[] inventory = playerInventories.get(clientId);
         if (player == null || inventory == null || slotIndex < 0 || slotIndex >= inventory.length) {
+            return;
+        }
+        if (InventoryLayout.isWeaponSlot(slotIndex)) {
             return;
         }
         ItemStack stack = inventory[slotIndex];
@@ -125,10 +135,18 @@ public class LobbyInventoryManager {
             return;
         }
 
+        if (!canPlaceInSlot(from.getItemTypeId(), toSlotIndex)) {
+            return;
+        }
+
         if (to == null || to.isEmpty()) {
             inventory[toSlotIndex] = from;
             inventory[fromSlotIndex] = null;
             sendInventoryUpdate(clientId);
+            return;
+        }
+
+        if (!canPlaceInSlot(to.getItemTypeId(), fromSlotIndex)) {
             return;
         }
 
@@ -209,6 +227,13 @@ public class LobbyInventoryManager {
 
     public taltech.orbitgame.network.Network.InventoryStateUpdate getInventoryStateUpdate(int clientId) {
         return createInventoryStateUpdate(clientId);
+    }
+
+    private boolean canPlaceInSlot(int itemTypeId, int slotIndex) {
+        if (!InventoryLayout.isWeaponSlot(slotIndex)) {
+            return true;
+        }
+        return ItemRegistry.isWeapon(itemTypeId);
     }
 }
 

@@ -10,18 +10,33 @@ import java.util.List;
  * Mutable inventory state for one player session.
  */
 public class InventoryState {
-    public static final int COLUMNS = 4;
-    public static final int ROWS = 3;
-    public static final int SLOT_COUNT = COLUMNS * ROWS;
+    public static final int COLUMNS = InventoryLayout.MAIN_COLUMNS;
+    public static final int ROWS = InventoryLayout.MAIN_ROWS;
+    public static final int MAIN_SLOT_COUNT = InventoryLayout.MAIN_SLOT_COUNT;
+    public static final int WEAPON_SLOT_COUNT = InventoryLayout.WEAPON_SLOT_COUNT;
+    public static final int SLOT_COUNT = InventoryLayout.TOTAL_SLOT_COUNT;
 
     private final ItemStack[] slots = new ItemStack[SLOT_COUNT];
     private boolean visible;
     private int selectedSlot = -1;
     private int draggedFromSlot = -1;
     private ItemStack draggedStack;
+    private int activeWeaponSlot = 0;
 
     public ItemStack[] getSlots() {
         return slots;
+    }
+
+    public int getActiveWeaponSlot() {
+        return activeWeaponSlot;
+    }
+
+    public ItemStack getActiveWeaponStack() {
+        int slotIndex = InventoryLayout.MAIN_SLOT_COUNT + activeWeaponSlot;
+        if (slotIndex < 0 || slotIndex >= slots.length) {
+            return null;
+        }
+        return slots[slotIndex];
     }
 
     public boolean isVisible() {
@@ -56,6 +71,20 @@ public class InventoryState {
         if (slotIndex >= 0 && slotIndex < SLOT_COUNT) {
             selectedSlot = slotIndex;
         }
+    }
+
+    public void setActiveWeaponSlot(int weaponSlotIndex) {
+        if (weaponSlotIndex >= 0 && weaponSlotIndex < WEAPON_SLOT_COUNT) {
+            activeWeaponSlot = weaponSlotIndex;
+        }
+    }
+
+    public void selectActiveWeaponSlot(int weaponSlotIndex) {
+        if (weaponSlotIndex < 0 || weaponSlotIndex >= WEAPON_SLOT_COUNT) {
+            return;
+        }
+        setActiveWeaponSlot(weaponSlotIndex);
+        selectSlot(InventoryLayout.MAIN_SLOT_COUNT + weaponSlotIndex);
     }
 
     public boolean hasDroppableSelection() {

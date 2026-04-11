@@ -39,6 +39,11 @@ public final class ItemRegistry {
         return definition != null && definition.isDroppableInWorld();
     }
 
+    public static boolean isWeapon(int itemTypeId) {
+        ItemDefinition definition = get(itemTypeId);
+        return definition != null && definition.isWeapon();
+    }
+
     public static Collection<ItemDefinition> all() {
         return Collections.unmodifiableCollection(BY_ID.values());
     }
