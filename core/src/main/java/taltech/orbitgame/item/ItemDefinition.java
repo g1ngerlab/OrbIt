@@ -5,17 +5,20 @@ package taltech.orbitgame.item;
  */
 public abstract class ItemDefinition {
     private final ItemKind kind;
+    private final ItemCategory category;
     private final String displayName;
     private final String iconPath;
     private final int maxStack;
     private final boolean droppableInWorld;
 
     protected ItemDefinition(ItemKind kind,
+                             ItemCategory category,
                              String displayName,
                              String iconPath,
                              int maxStack,
                              boolean droppableInWorld) {
         this.kind = kind;
+        this.category = category == null ? ItemCategory.GENERIC : category;
         this.displayName = displayName;
         this.iconPath = iconPath;
         this.maxStack = Math.max(1, maxStack);
@@ -28,6 +31,14 @@ public abstract class ItemDefinition {
 
     public int getTypeId() {
         return kind.getId();
+    }
+
+    public ItemCategory getCategory() {
+        return category;
+    }
+
+    public boolean isWeapon() {
+        return category == ItemCategory.WEAPON;
     }
 
     public String getDisplayName() {

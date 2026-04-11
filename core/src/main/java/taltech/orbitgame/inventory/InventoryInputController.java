@@ -39,6 +39,12 @@ public class InventoryInputController {
             state.toggleVisible();
         }
 
+        if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_1)) {
+            state.selectActiveWeaponSlot(0);
+        } else if (Gdx.input.isKeyJustPressed(Input.Keys.NUM_2)) {
+            state.selectActiveWeaponSlot(1);
+        }
+
         boolean leftDown = Gdx.input.isButtonPressed(Input.Buttons.LEFT);
         if (state.isVisible() && leftDown && !prevLeftMouseDown) {
             int slot = slotResolver.resolve(Gdx.input.getX(), Gdx.input.getY());
@@ -59,7 +65,10 @@ public class InventoryInputController {
         prevLeftMouseDown = leftDown;
 
         if (state.isVisible() && state.hasDroppableSelection() && Gdx.input.isKeyJustPressed(Input.Keys.G)) {
-            dropAction.dropFromSlot(state.getSelectedSlot());
+            int selectedSlot = state.getSelectedSlot();
+            if (!InventoryLayout.isWeaponSlot(selectedSlot)) {
+                dropAction.dropFromSlot(selectedSlot);
+            }
         }
     }
 }

@@ -5,7 +5,7 @@ package taltech.orbitgame.item;
  */
 public final class OrbItemDefinition extends ItemDefinition {
     public OrbItemDefinition() {
-        super(ItemKind.ORB, "Orb", "loot/orb_v1.png", 16, true);
+        super(ItemKind.ORB, ItemCategory.GENERIC, "Orb", "loot/orb_v1.png", 16, true);
     }
 }
 
