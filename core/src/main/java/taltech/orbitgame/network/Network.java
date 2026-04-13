@@ -592,12 +592,20 @@ public class Network {
         public int entityType;
         /** clientId for players, npcId for NPCs */
         public int entityId;
+        /** clientId of the player who killed this entity (-1 if killed by NPC/environment) */
+        public int killerId = -1;
 
         public EntityDied() {}
 
         public EntityDied(int entityType, int entityId) {
             this.entityType = entityType;
             this.entityId = entityId;
+        }
+
+        public EntityDied(int entityType, int entityId, int killerId) {
+            this.entityType = entityType;
+            this.entityId = entityId;
+            this.killerId = killerId;
         }
     }
 

@@ -77,23 +77,35 @@ public class NetworkEventHandler {
         });
     }
 
-    public void onEntityDied(Network.EntityDied entityDied, Runnable onPlayerDiedCallback) {
+    public void onEntityDied(Network.EntityDied entityDied, GameScreen.DeathCallback deathCallback) {
         Gdx.app.postRunnable(() -> {
             if (entityDied.entityType == Network.EntityDied.TYPE_NPC) {
                 // NPC died
             } else if (entityDied.entityType == Network.EntityDied.TYPE_PLAYER) {
                 int myId = gameClient.getClientId();
                 if (entityDied.entityId == myId) {
-                    onPlayerDiedCallback.run();
+                    // Local player died - get killer name
+                    String killerName = null;
+                    if (entityDied.killerId >= 0) {
+                        RemotePlayer killer = gameState.getRemotePlayers().getPlayer(entityDied.killerId);
+                        killerName = killer != null ? killer.playerName : "Unknown";
+                    }
+                    deathCallback.onPlayerDied(killerName);
                 } else {
-                    // Show kill notification
+                    // Another player died
                     RemotePlayer killed = gameState.getRemotePlayers().getPlayer(entityDied.entityId);
+
                     if (killed != null) {
                         killNotifications.addKillNotification(localPlayer.getPlayerName(), killed.playerName);
                         AudioManager.getInstance().playPlayerDeath(killed.x, killed.y,
                                 localPlayer.getCenterX(), localPlayer.getCenterY());
                         gameState.getRemotePlayers().removePlayer(entityDied.entityId);
                         killed.dispose();
+                    }
+
+                    // Check if WE killed this player
+                    if (entityDied.killerId == myId) {
+                        localPlayer.addKill();
                     }
                 }
             }

@@ -241,14 +241,14 @@ public class GameClient {
             for (int attempt = 1; attempt <= maxRetries; attempt++) {
                 try {
                     System.out.println("[Client] Attempting to connect (attempt " + attempt + "/" + maxRetries + ")...");
-                    client.connect(2000, serverHost, serverPort); // Reduced timeout from 5000 to 2000ms
+                    client.connect(1000, serverHost, serverPort); // Reduced timeout from 2000 to 1000ms for faster feedback
                     System.out.println("[Client] Connection succeeded");
                     return;
                 } catch (IOException e) {
                     System.err.println("[Client] Connection attempt " + attempt + " failed: " + e.getMessage());
                     if (attempt < maxRetries) {
                         try {
-                            Thread.sleep(300); // Wait briefly before retrying
+                            Thread.sleep(100); // Reduced from 300ms for faster retry
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
                             break;
