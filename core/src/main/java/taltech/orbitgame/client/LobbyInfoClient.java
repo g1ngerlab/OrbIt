@@ -17,7 +17,9 @@ import java.util.Map;
  */
 public class LobbyInfoClient {
     private static final int CONNECT_TIMEOUT_MS = 2000;
-    private static final long RETRY_DELAY_MS = 1000L;
+    private static final long INITIAL_RETRY_DELAY_MS = 300L;
+    private static final long MAX_RETRY_DELAY_MS = 2000L;
+    private static final int MAX_INITIAL_RETRIES = 5; // Stop retrying after 5 attempts
 
     private final Client client;
     private final String serverHost;
@@ -129,6 +131,7 @@ public class LobbyInfoClient {
         if (connectThread == null || !connectThread.isAlive()) {
             client.start();
             connectThread = new Thread(() -> {
+                long retryDelay = INITIAL_RETRY_DELAY_MS;
                 while (connectLoopRunning && !Thread.currentThread().isInterrupted()) {
                     if (client.isConnected()) {
                         sleepQuietly(300L);
@@ -140,10 +143,21 @@ public class LobbyInfoClient {
                         System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to "
                             + serverHost + ":" + serverPort);
                         client.connect(CONNECT_TIMEOUT_MS, serverHost, serverPort);
+                        retryDelay = INITIAL_RETRY_DELAY_MS; // Reset delay on successful connection
                     } catch (IOException e) {
                         lastConnectionError = e.getMessage();
                         System.err.println("[LobbyInfoClient] Connection failed: " + e.getMessage());
-                        sleepQuietly(RETRY_DELAY_MS);
+
+                        // Stop retrying after max attempts
+                        if (retryAttempt >= MAX_INITIAL_RETRIES) {
+                            System.out.println("[LobbyInfoClient] Max retries reached (" + MAX_INITIAL_RETRIES + "), giving up");
+                            connectLoopRunning = false;
+                            break;
+                        }
+
+                        // Exponential backoff up to max
+                        sleepQuietly(retryDelay);
+                        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY_MS);
                     }
                 }
             }, "LobbyInfoClient-Connect");
@@ -182,27 +196,7 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.RequestAllLobbies());
             System.out.println("[LobbyInfoClient] Requested all lobbies");
         } else {
-            System.err.println("[LobbyInfoClient] Cannot request lobbies - not connected. Retrying...");
-            // Retry after a short delay
-            new Thread(() -> {
-                for (int i = 0; i < 10; i++) {
-                    try {
-                        Thread.sleep(500);
-                        if (client.isConnected()) {
-                            System.out.println("[LobbyInfoClient] Connection established, requesting lobbies");
-                            client.sendTCP(new Network.RequestAllLobbies());
-                            return;
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-                System.err.println("[LobbyInfoClient] Failed to request lobbies - connection timeout");
-                if (allLobbiesListener != null) {
-                    allLobbiesListener.onAllLobbiesReceived(new ArrayList<>());
-                }
-            }).start();
+            System.out.println("[LobbyInfoClient] Cannot request lobbies - not connected yet");
         }
     }
 
@@ -211,27 +205,10 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.CreateLobby(lobbyName));
             System.out.println("[LobbyInfoClient] Sent create lobby request: " + lobbyName);
         } else {
-            System.err.println("[LobbyInfoClient] Cannot create lobby - not connected. Retrying...");
-            // Retry after a short delay
-            new Thread(() -> {
-                for (int i = 0; i < 10; i++) {
-                    try {
-                        Thread.sleep(500);
-                        if (client.isConnected()) {
-                            System.out.println("[LobbyInfoClient] Connection established, sending create lobby request");
-                            client.sendTCP(new Network.CreateLobby(lobbyName));
-                            return;
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                }
-                System.err.println("[LobbyInfoClient] Failed to create lobby - connection timeout");
-                if (lobbyCreatedListener != null) {
-                    lobbyCreatedListener.onLobbyCreateFailed("Connection timeout");
-                }
-            }).start();
+            System.out.println("[LobbyInfoClient] Cannot create lobby - not connected yet");
+            if (lobbyCreatedListener != null) {
+                lobbyCreatedListener.onLobbyCreateFailed("Not connected to server");
+            }
         }
     }
 

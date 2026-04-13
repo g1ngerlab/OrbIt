@@ -93,15 +93,11 @@ public class JoinLobbyScreen implements Screen {
                 Gdx.app.postRunnable(() -> updateLobbyList(lobbies))
             );
 
-            // Will request lobbies in render() once connected
+            // Request immediately if connected, otherwise wait for connection in render()
             if (lobbyInfoClient.isConnected()) {
                 requestSent = true;
                 lobbyInfoClient.requestAllLobbies();
             }
-            // else: render() will keep polling until connected
-        } else {
-            statusLabel.setText("Not connected to server");
-            updateLobbyList(new java.util.ArrayList<>());
         }
     }
 

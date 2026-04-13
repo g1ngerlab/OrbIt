@@ -18,6 +18,7 @@ public class GameClient {
     private final String serverHost;
     private final int serverPort;
     private GameClientListener gameListener;
+    private boolean connectCalled = false;
 
     public interface GameClientListener {
         void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId);
@@ -226,14 +227,36 @@ public class GameClient {
     }
 
     public void connect() {
+        // Only attempt to connect if not already called
+        if (connectCalled) {
+            System.out.println("[Client] Connect already called, skipping...");
+            return;
+        }
+        connectCalled = true;
+
         client.start();
 
         new Thread(() -> {
-            try {
-                client.connect(5000, serverHost, serverPort);
-            } catch (IOException e) {
-                System.err.println("[Client] Connection failed: " + e.getMessage());
+            int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    System.out.println("[Client] Attempting to connect (attempt " + attempt + "/" + maxRetries + ")...");
+                    client.connect(2000, serverHost, serverPort); // Reduced timeout from 5000 to 2000ms
+                    System.out.println("[Client] Connection succeeded");
+                    return;
+                } catch (IOException e) {
+                    System.err.println("[Client] Connection attempt " + attempt + " failed: " + e.getMessage());
+                    if (attempt < maxRetries) {
+                        try {
+                            Thread.sleep(300); // Wait briefly before retrying
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
             }
+            System.err.println("[Client] Failed to connect after " + maxRetries + " attempts");
         }, "Client-Connect").start();
     }
 
