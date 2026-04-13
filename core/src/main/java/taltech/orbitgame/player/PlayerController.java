@@ -8,6 +8,7 @@ import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
 import taltech.orbitgame.network.Network.InputState;
+import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.world.Direction;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
@@ -25,6 +26,7 @@ public class PlayerController {
     private final GameClient gameClient;
     private final MapManager map;
     private final OrthographicCamera camera;
+    private final GameRenderer gameRenderer;
     private final float speed;
 
     private float localAimX;
@@ -38,11 +40,17 @@ public class PlayerController {
 
     public PlayerController(Player player, InputHandler inputHandler, GameClient gameClient,
                            MapManager map, OrthographicCamera camera, float speed) {
+        this(player, inputHandler, gameClient, map, camera, speed, null);
+    }
+
+    public PlayerController(Player player, InputHandler inputHandler, GameClient gameClient,
+                           MapManager map, OrthographicCamera camera, float speed, GameRenderer gameRenderer) {
         this.player = player;
         this.inputHandler = inputHandler;
         this.gameClient = gameClient;
         this.map = map;
         this.camera = camera;
+        this.gameRenderer = gameRenderer;
         this.speed = speed;
 
         this.mouseScreen = new Vector3();
@@ -112,6 +120,10 @@ public class PlayerController {
             // Play shotgun sound for own shot at full volume
             AudioManager.getInstance().playShotgunShot(player.getCenterX(), player.getCenterY(),
                                                        player.getCenterX(), player.getCenterY(), true);
+            // Trigger screen shake effect
+            if (gameRenderer != null) {
+                gameRenderer.triggerScreenShake();
+            }
             shotCooldownTimer = SHOT_COOLDOWN;
         }
 

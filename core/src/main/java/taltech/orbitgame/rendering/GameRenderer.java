@@ -58,6 +58,9 @@ public class GameRenderer {
     private static final float ORB_DROP_HOP_HEIGHT = 14f;
     private static final float ORB_LEVITATION_HEIGHT = 3.5f;
     private static final float FREEZE_OVERLAY_ALPHA = 0.08f;
+    private static final float SCREEN_SHAKE_DURATION = 0.15f;
+    private static final float SCREEN_SHAKE_INTENSITY = 8f;
+
     private float orbAnimTime = 0f;
     private Map<Integer, Network.OrbState> currentOrbs = Collections.emptyMap();
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
@@ -65,6 +68,10 @@ public class GameRenderer {
     private boolean debugOverlayVisible;
     private int lobbyTimerRemainingMs = 10 * 60 * 1000;
     private boolean lobbyFreezePhase;
+
+    // Screen shake effect
+    private float screenShakeTimer = 0f;
+    private boolean isScreenShaking = false;
 
     public GameRenderer(CharacterType localCharacterType) {
         this.localCharacterType = localCharacterType == null ? CharacterType.MATH : localCharacterType;
@@ -99,6 +106,15 @@ public class GameRenderer {
 
         orbAnimTime += delta;
 
+        // Update screen shake effect
+        if (isScreenShaking) {
+            screenShakeTimer -= delta;
+            if (screenShakeTimer <= 0) {
+                isScreenShaking = false;
+                screenShakeTimer = 0;
+            }
+        }
+
         if (!isInLobby) {
             renderCenteredMessage("Connecting to lobby...");
             return;
@@ -112,6 +128,19 @@ public class GameRenderer {
         // Update camera
         cameraController.updateCamera(player, map.getWidthPx(), map.getHeightPx());
         cameraController.getCamera().update();
+
+        // Apply screen shake to camera AFTER updating so it actually affects the view
+        if (isScreenShaking) {
+            float progress = 1f - (screenShakeTimer / SCREEN_SHAKE_DURATION);
+            // Use exponential decay for more pronounced effect at start
+            float intensity = (float) Math.pow(1f - progress, 0.5f);
+            float offsetX = (MathUtils.random() - 0.5f) * 2 * SCREEN_SHAKE_INTENSITY * intensity;
+            float offsetY = (MathUtils.random() - 0.5f) * 2 * SCREEN_SHAKE_INTENSITY * intensity;
+            cameraController.getCamera().position.x += offsetX;
+            cameraController.getCamera().position.y += offsetY;
+            cameraController.getCamera().update(); // Update camera again with shake applied
+        }
+
         batch.setProjectionMatrix(cameraController.getCamera().combined);
         shapeRenderer.setProjectionMatrix(cameraController.getCamera().combined);
 
@@ -210,6 +239,11 @@ public class GameRenderer {
         this.inventoryState = inventoryState == null ? new InventoryState() : inventoryState;
     }
 
+    public void triggerScreenShake() {
+        isScreenShaking = true;
+        screenShakeTimer = SCREEN_SHAKE_DURATION;
+    }
+
     public void setDebugOverlayVisible(boolean debugOverlayVisible) {
         this.debugOverlayVisible = debugOverlayVisible;
     }
@@ -234,6 +268,7 @@ public class GameRenderer {
         inventoryHudRenderer.render(batch, shapeRenderer, hudCamera, hudFont, delta, inventoryState);
         renderLobbyTimerOverlay();
         renderLobbyTimer();
+        renderHealthDisplay(player);
         renderDebugOverlay(player);
     }
 
@@ -270,6 +305,38 @@ public class GameRenderer {
         int minutes = totalSeconds / 60;
         int seconds = totalSeconds % 60;
         return String.format("Lobby %02d:%02d", minutes, seconds);
+    }
+
+    private void renderHealthDisplay(Player player) {
+        if (player == null) {
+            return;
+        }
+
+        batch.begin();
+        hudFont.getData().setScale(1.2f);
+
+        // Format: "HP: 100/100"
+        String healthText = String.format("HP: %.0f/%.0f", player.getHealth(), player.getMaxHealth());
+        layout.setText(hudFont, healthText);
+
+        // Position in bottom right corner with padding
+        float x = Gdx.graphics.getWidth() - layout.width - 16f;
+        float y = 50f;
+
+        // Draw health text with color based on health percentage
+        float healthPercent = player.getHealthPercentage();
+        if (healthPercent > 0.5f) {
+            hudFont.setColor(0.2f, 1f, 0.2f, 1f); // Green for high health
+        } else if (healthPercent > 0.25f) {
+            hudFont.setColor(1f, 1f, 0.2f, 1f); // Yellow for medium health
+        } else {
+            hudFont.setColor(1f, 0.2f, 0.2f, 1f); // Red for low health
+        }
+
+        hudFont.draw(batch, healthText, x, y);
+        hudFont.getData().setScale(1f);
+        hudFont.setColor(1f, 1f, 1f, 1f);
+        batch.end();
     }
 
     private void renderDebugOverlay(Player player) {
