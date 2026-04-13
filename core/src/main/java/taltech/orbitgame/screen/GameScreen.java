@@ -73,6 +73,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     // Debugging
     private boolean debugCoordsVisible = false;
 
+    // Death/Extraction state
+    private String killedByName = null;
+    private boolean playerDead = false;
+
     public GameScreen(Main game, GameClient gameClient) {
         this(game, gameClient, null);
     }
@@ -302,11 +306,15 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     @Override public void onLobbyJoinConfirmed(float spawnX, float spawnY) {
         Gdx.app.postRunnable(() -> {
+            // Reset player state for new match
+            player.resetForNewMatch();
             player.x = spawnX;
             player.y = spawnY;
             if (playerController != null) {
                 playerController.resetAim();
             }
+            playerDead = false;
+            killedByName = null;
             gameState.setInLobby(true);
         });
     }
@@ -354,9 +362,11 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     }
 
     @Override public void onEntityDied(Network.EntityDied entityDied) {
-        networkHandler.onEntityDied(entityDied, () -> {
+        networkHandler.onEntityDied(entityDied, (killerName) -> {
             gameState.setInLobby(false);
-            leaveToMainMenuLikeEscLeave();
+            killedByName = killerName;
+            playerDead = true;
+            showDeathScreen();
         });
     }
 
@@ -412,9 +422,12 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         if (leavingGame || disposed) {
             return;
         }
+        // Show extraction result screen
+        showExtractionScreen();
+        // Save loot in background
         sessionExitCoordinator.saveExtractedLootAndLeave(
             inventoryFeature.getState().getSlots(),
-            this::leaveToMainMenuLikeEscLeave
+            () -> {} // Extraction screen handles the navigation
         );
     }
 
@@ -438,5 +451,33 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             gameRenderer.getBulletRenderer().cleanupBullets(seen);
         });
+    }
+
+    private void showDeathScreen() {
+        isPaused = true;
+        DeathScreen deathScreen = new DeathScreen(
+            game,
+            player.getPlayerName(),
+            killedByName,
+            this::leaveToMainMenuLikeEscLeave
+        );
+        game.setScreen(deathScreen);
+    }
+
+    private void showExtractionScreen() {
+        isPaused = true;
+        ExtractionResultScreen extractionScreen = new ExtractionResultScreen(
+            game,
+            player.getPlayerName(),
+            player.getKillCount(),
+            this::leaveToMainMenuLikeEscLeave
+        );
+        game.setScreen(extractionScreen);
+    }
+
+    // Callback interface for death with killer information
+    @FunctionalInterface
+    public interface DeathCallback {
+        void onPlayerDied(String killerName);
     }
 }

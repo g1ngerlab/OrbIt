@@ -16,10 +16,10 @@ import java.util.Map;
  * Lightweight client for querying lobby information without joining
  */
 public class LobbyInfoClient {
-    private static final int CONNECT_TIMEOUT_MS = 2000;
-    private static final long INITIAL_RETRY_DELAY_MS = 300L;
-    private static final long MAX_RETRY_DELAY_MS = 2000L;
-    private static final int MAX_INITIAL_RETRIES = 5; // Stop retrying after 5 attempts
+    private static final int CONNECT_TIMEOUT_MS = 1000;  // Reduced from 2000ms for local network
+    private static final long INITIAL_RETRY_DELAY_MS = 100L;  // Reduced from 300ms
+    private static final long MAX_RETRY_DELAY_MS = 500L;  // Reduced from 2000ms
+    private static final int MAX_INITIAL_RETRIES = 3;  // Reduced from 5 attempts
 
     private final Client client;
     private final String serverHost;

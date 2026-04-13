@@ -57,6 +57,9 @@ public class Player {
     private float maxHealth;
     private float currentHealth;
 
+    // Kill count tracking
+    private int killCount = 0;
+
     private String playerName = "Player";
     private final BitmapFont nameFont;
     private final GlyphLayout nameLayout;
@@ -282,6 +285,42 @@ public class Player {
      */
     public boolean isAlive() {
         return currentHealth > 0f;
+    }
+
+    // Kill count methods
+    /**
+     * Increments kill count by 1
+     */
+    public void addKill() {
+        killCount++;
+    }
+
+    /**
+     * @return Current kill count
+     */
+    public int getKillCount() {
+        return killCount;
+    }
+
+    /**
+     * Resets kill count to 0
+     */
+    public void resetKillCount() {
+        killCount = 0;
+    }
+
+    /**
+     * Resets player state for a new match
+     */
+    public void resetForNewMatch() {
+        this.maxHealth = 100f;
+        this.currentHealth = 100f;
+        this.killCount = 0;
+        this.attacking = false;
+        this.moving = false;
+        this.runTime = 0f;
+        this.idleTime = 0f;
+        this.attackTime = 0f;
     }
 
     private void drawName(SpriteBatch batch) {
