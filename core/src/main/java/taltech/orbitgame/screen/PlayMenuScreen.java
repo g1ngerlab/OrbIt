@@ -15,8 +15,6 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
-import taltech.orbitgame.auth.AuthState;
-import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
@@ -146,12 +144,12 @@ public class PlayMenuScreen implements Screen {
         statusLabel.setText("Connecting to Lobby " + lobbyId + "...");
         System.out.println("[PlayMenuScreen] Connecting to Lobby " + lobbyId);
 
-        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
-
-        // Create GameScreen first so listener is attached before any server packets arrive.
-        // Pass lobbyInfoClient to preserve connection when exiting game
-        game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));
-        gameClient.connect();
+        game.setScreen(new ChooseLoadoutScreen(
+            game,
+            lobbyInfoClient,
+            lobbyId,
+            new PlayMenuScreen(game, lobbyInfoClient)
+        ));
     }
 
     private TextButton createBackButton() {

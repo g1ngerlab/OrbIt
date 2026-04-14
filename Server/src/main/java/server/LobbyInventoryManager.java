@@ -5,7 +5,9 @@ import taltech.orbitgame.inventory.InventoryLayout;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.item.ItemRegistry;
 import taltech.orbitgame.item.ItemStack;
+import taltech.orbitgame.network.Network;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,6 +20,7 @@ public class LobbyInventoryManager {
     private static final float PLAYER_HEIGHT = 48f;
     private static final float PLAYER_DROP_MIN_DISTANCE = 44f;
     private static final float PLAYER_DROP_MAX_DISTANCE = 72f;
+    private static final int STARTER_WEAPON_ITEM_TYPE = ItemKind.STARTER_SHOTGUN.getId();
 
     private final Map<Integer, LobbyPlayer> players;
     private final Map<Integer, ItemStack[]> playerInventories;
@@ -33,6 +36,35 @@ public class LobbyInventoryManager {
 
     public ItemStack[] createEmptyInventory() {
         return new ItemStack[INVENTORY_SLOTS];
+    }
+
+    public void applyStartingLoadout(int clientId, List<Network.InventorySlotState> loadoutSlots) {
+        ItemStack[] inventory = playerInventories.get(clientId);
+        if (inventory == null) {
+            return;
+        }
+
+        for (int i = 0; i < inventory.length; i++) {
+            inventory[i] = null;
+        }
+
+        if (loadoutSlots != null) {
+            int limit = Math.min(inventory.length, loadoutSlots.size());
+            for (int i = 0; i < limit; i++) {
+                Network.InventorySlotState slot = loadoutSlots.get(i);
+                if (slot == null || slot.itemType == ItemKind.NONE.getId() || slot.amount <= 0) {
+                    continue;
+                }
+                if (!canPlaceInSlot(slot.itemType, i)) {
+                    continue;
+                }
+                int amount = Math.min(slot.amount, Math.max(1, ItemRegistry.getMaxStack(slot.itemType)));
+                inventory[i] = new ItemStack(slot.itemType, amount);
+            }
+        }
+
+        grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
+        sendInventoryUpdate(clientId);
     }
 
     public boolean addItemToInventory(int clientId, int itemTypeId, int amount) {
