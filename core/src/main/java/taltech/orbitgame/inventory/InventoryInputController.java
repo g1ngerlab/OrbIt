@@ -66,9 +66,7 @@ public class InventoryInputController {
 
         if (state.isVisible() && state.hasDroppableSelection() && Gdx.input.isKeyJustPressed(Input.Keys.G)) {
             int selectedSlot = state.getSelectedSlot();
-            if (!InventoryLayout.isWeaponSlot(selectedSlot)) {
-                dropAction.dropFromSlot(selectedSlot);
-            }
+            dropAction.dropFromSlot(selectedSlot);
         }
     }
 }

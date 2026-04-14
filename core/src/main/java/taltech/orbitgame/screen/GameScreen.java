@@ -270,7 +270,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             float speed = 120f;
             this.playerController = new PlayerController(
                 player, inputHandler, gameClient, map,
-                gameRenderer.getCameraController().getCamera(), speed, gameRenderer
+                gameRenderer.getCameraController().getCamera(), speed, gameRenderer, inventoryFeature.getState()
             );
 
             this.extractionPointRenderer = new ExtractionPointRenderer(extractionManager);

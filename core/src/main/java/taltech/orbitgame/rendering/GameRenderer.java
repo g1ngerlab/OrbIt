@@ -13,6 +13,8 @@ import com.badlogic.gdx.math.MathUtils;
 import taltech.orbitgame.camera.CameraController;
 import taltech.orbitgame.inventory.InventoryHudRenderer;
 import taltech.orbitgame.inventory.InventoryState;
+import taltech.orbitgame.item.ItemDefinition;
+import taltech.orbitgame.item.ItemRegistry;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.player.PlayerController;
@@ -43,6 +45,7 @@ public class GameRenderer {
     private final BitmapFont hudFont;
     private final GlyphLayout layout;
     private final Texture orbTexture;
+    private final Map<Integer, Texture> worldItemTextures;
     private final InventoryHudRenderer inventoryHudRenderer;
     private final OrthographicCamera hudCamera;
     private final CharacterType localCharacterType;
@@ -94,6 +97,7 @@ public class GameRenderer {
         this.hudFont = FontManager.getPixelFont(32);
         this.layout = new GlyphLayout();
         this.orbTexture = new Texture(Gdx.files.internal("loot/orb_v1.png"));
+        this.worldItemTextures = loadWorldItemTextures();
         this.inventoryHudRenderer = new InventoryHudRenderer();
         this.hudCamera = new OrthographicCamera();
         this.hudCamera.setToOrtho(false, 800, 600);
@@ -169,7 +173,8 @@ public class GameRenderer {
 
         // Render local player with weapon
         player.render(batch);
-        if (player.getCharacterType() != CharacterType.PUPU
+        if (playerController.hasUsableWeaponEquipped()
+            && player.getCharacterType() != CharacterType.PUPU
             && player.getCharacterType() != CharacterType.EBANIBUNNY) {
             weaponRenderer.drawShotgun(
                 batch,
@@ -222,9 +227,11 @@ public class GameRenderer {
             float height = orb.radius * 2f * scale * ORB_WORLD_SIZE_MULTIPLIER;
             float drawY = orb.y + hop + levitation;
 
+            Texture texture = worldItemTextures.getOrDefault(orb.itemType, orbTexture);
+
             batch.setColor(1f, 1f, 1f, alpha);
             batch.draw(
-                orbTexture,
+                texture,
                 orb.x - width * 0.5f,
                 drawY - height * 0.5f,
                 width,
@@ -417,7 +424,28 @@ public class GameRenderer {
         cursorManager.dispose();
         hudFont.dispose();
         orbTexture.dispose();
+        for (Texture texture : worldItemTextures.values()) {
+            if (texture != orbTexture) {
+                texture.dispose();
+            }
+        }
         inventoryHudRenderer.dispose();
+    }
+
+    private Map<Integer, Texture> loadWorldItemTextures() {
+        Map<Integer, Texture> textures = new HashMap<>();
+        textures.put(taltech.orbitgame.item.ItemKind.ORB.getId(), orbTexture);
+        for (ItemDefinition definition : ItemRegistry.all()) {
+            String iconPath = definition.getIconPath();
+            if (iconPath == null || iconPath.trim().isEmpty()) {
+                continue;
+            }
+            if (textures.containsKey(definition.getTypeId())) {
+                continue;
+            }
+            textures.put(definition.getTypeId(), new Texture(Gdx.files.internal(iconPath)));
+        }
+        return textures;
     }
 
     private void renderCenteredMessage(String message) {
