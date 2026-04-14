@@ -226,7 +226,7 @@ public class PlayerInputListener implements Listener {
         }
 
         int characterId = Math.max(1, joinLobby.characterId);
-        lobby.addPlayer(clientId, playerName, characterId, connection);
+        lobby.addPlayer(clientId, playerName, characterId, connection, joinLobby.loadoutSlots);
         clientToLobby.put(clientId, joinLobby.lobbyId);
     }
 

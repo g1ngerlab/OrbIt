@@ -9,12 +9,15 @@ import taltech.orbitgame.network.Network.InputState;
 import taltech.orbitgame.network.NetworkConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GameClient {
-    private Client client;
+    private final Client client;
     private int clientId = -1;
-    private int lobbyId = 1; // Default lobby
+    private final int lobbyId;
     private final String playerName;
+    private final ArrayList<Network.InventorySlotState> loadoutSlots;
     private final String serverHost;
     private final int serverPort;
     private GameClientListener gameListener;
@@ -51,8 +54,13 @@ public class GameClient {
     }
 
     public GameClient(int lobbyId, String playerName) {
+        this(lobbyId, playerName, new ArrayList<>());
+    }
+
+    public GameClient(int lobbyId, String playerName, List<Network.InventorySlotState> selectedLoadoutSlots) {
         this.lobbyId = lobbyId;
         this.playerName = sanitizeName(playerName);
+        this.loadoutSlots = selectedLoadoutSlots == null ? new ArrayList<>() : new ArrayList<>(selectedLoadoutSlots);
         this.serverHost = NetworkConfig.getServerHost();
         this.serverPort = NetworkConfig.getServerPort();
         client = new Client();
@@ -77,10 +85,11 @@ public class GameClient {
                     System.out.println("[Client] Registered as: " + reg.name + " (id=" + clientId + ")");
 
                     // Join the lobby after registration
-                    System.out.println("[Client] Requesting to join lobby " + lobbyId);
+                    System.out.println("[Client] Requesting to join lobby " + GameClient.this.lobbyId);
                     Network.JoinLobby joinLobby = new Network.JoinLobby(
-                        lobbyId,
-                        PlayerProfile.getSelectedCharacterId()
+                        GameClient.this.lobbyId,
+                        PlayerProfile.getSelectedCharacterId(),
+                        new ArrayList<>(GameClient.this.loadoutSlots)
                     );
                     client.sendTCP(joinLobby);
                 }

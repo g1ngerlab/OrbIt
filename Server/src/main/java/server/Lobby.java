@@ -148,30 +148,29 @@ public class Lobby {
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
-        if (lobbyClosed) {
-            return;
-        }
-        LobbyPlayer player = createPlayer(clientId, playerName, 1, connection);
-        players.put(clientId, player);
-        playerInventories.put(clientId, inventoryManager.createEmptyInventory());
-        inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
-        emptyTimestamp = 0;
+        addPlayer(clientId, playerName, 1, connection, null);
+    }
 
-        LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
-
-        sendLobbySnapshotToNewPlayer(clientId, connection, player);
-        notifyOthersAboutNewPlayer(player);
-        sendWorldSnapshotTo(connection);
+    public void addPlayer(int clientId, String playerName, Connection connection, List<Network.InventorySlotState> loadoutSlots) {
+        addPlayer(clientId, playerName, 1, connection, loadoutSlots);
     }
 
     public void addPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        addPlayer(clientId, playerName, characterId, connection, null);
+    }
+
+    public void addPlayer(int clientId, String playerName, int characterId, Connection connection, List<Network.InventorySlotState> loadoutSlots) {
         if (lobbyClosed) {
             return;
         }
         LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, inventoryManager.createEmptyInventory());
-        inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
+        if (loadoutSlots == null || loadoutSlots.isEmpty()) {
+            inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
+        } else {
+            inventoryManager.applyStartingLoadout(clientId, loadoutSlots);
+        }
         emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());

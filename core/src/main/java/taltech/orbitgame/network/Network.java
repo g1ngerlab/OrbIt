@@ -123,12 +123,20 @@ public class Network {
     public static class JoinLobby {
         public int lobbyId;
         public int characterId;
+        public java.util.List<InventorySlotState> loadoutSlots;
 
-        public JoinLobby() {}
+        public JoinLobby() {
+            loadoutSlots = new java.util.ArrayList<>();
+        }
 
         public JoinLobby(int lobbyId, int characterId) {
+            this(lobbyId, characterId, new java.util.ArrayList<>());
+        }
+
+        public JoinLobby(int lobbyId, int characterId, java.util.List<InventorySlotState> loadoutSlots) {
             this.lobbyId = lobbyId;
             this.characterId = characterId;
+            this.loadoutSlots = loadoutSlots == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(loadoutSlots);
         }
     }
 
