@@ -13,6 +13,7 @@ public final class ItemRegistry {
 
     static {
         register(new OrbItemDefinition());
+        register(new taltech.orbitgame.item.StarterShotgunItemDefinition());
     }
 
     private ItemRegistry() {

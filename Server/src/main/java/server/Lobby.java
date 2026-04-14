@@ -57,6 +57,7 @@ public class Lobby {
     private static final float ORB_DROP_MAX_DISTANCE = 54f;
     private static final float ORB_RADIUS = 16f;
     private static final float ORB_PICKUP_RADIUS = 34f;
+    private static final int STARTER_WEAPON_ITEM_TYPE = ItemKind.STARTER_SHOTGUN.getId();
     private static final float ORB_INITIAL_SPEED_MIN = 70f;
     private static final float ORB_INITIAL_SPEED_MAX = 150f;
     private static final float ORB_DRAG_PER_SECOND = 3.2f;
@@ -143,7 +144,7 @@ public class Lobby {
         // Initialize refactored components
         this.broadcaster = new LobbyBroadcaster(players);
         this.itemDropManager = new LobbyItemDropManager(orbs, collisionGrid, random, nextOrbId);
-        this.inventoryManager = new LobbyInventoryManager(players, playerInventories, broadcaster, itemDropManager, collisionGrid);
+        this.inventoryManager = new LobbyInventoryManager(players, playerInventories, itemDropManager);
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
@@ -153,6 +154,7 @@ public class Lobby {
         LobbyPlayer player = createPlayer(clientId, playerName, 1, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, inventoryManager.createEmptyInventory());
+        inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
         emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
@@ -169,6 +171,7 @@ public class Lobby {
         LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
         playerInventories.put(clientId, inventoryManager.createEmptyInventory());
+        inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
         emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
@@ -384,6 +387,7 @@ public class Lobby {
         for (ServerOrb orb : orbs.values()) {
             Network.OrbState state = new Network.OrbState();
             state.orbId = orb.getOrbId();
+            state.itemType = orb.getItemTypeId();
             state.x = orb.getX();
             state.y = orb.getY();
             state.radius = orb.getRadius();
@@ -499,7 +503,7 @@ public class Lobby {
             }
 
             if (collector != null) {
-                if (inventoryManager.addItemToInventory(collector.getClientId(), ItemKind.ORB.getId(), 1)) {
+                if (inventoryManager.addItemToInventory(collector.getClientId(), orb.getItemTypeId(), 1)) {
                     toRemove.add(orb.getOrbId());
                 }
             }
@@ -596,7 +600,7 @@ public class Lobby {
     private void onPlayerKilled(LobbyPlayer player, String reason) {
         LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " killed by " + reason + "!");
         if ("bullet".equals(reason) || "freeze".equals(reason)) {
-            dropAllInventoryItems(player);
+            inventoryManager.dropAllInventoryItems(player);
         }
         addPlayerCorpse(player);
         broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId()));
@@ -621,7 +625,7 @@ public class Lobby {
     private void onNpcKilledByBullet(Npc npc) {
         LOGGER.info(lobbyTag() + "NPC #" + npc.getId() + " killed!");
         addRobotButlerCorpse(npc);
-        spawnOrbsAroundNpc(npc);
+        itemDropManager.spawnOrbsAroundNpc(npc);
         broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
 
         // Send death sound to all clients for audio playback
@@ -672,7 +676,7 @@ public class Lobby {
             float velocityY = (float) Math.sin(angle) * initialSpeed;
 
             int orbId = nextOrbId++;
-            ServerOrb orb = new ServerOrb(orbId, x, y, ORB_RADIUS, velocityX, velocityY);
+            ServerOrb orb = new ServerOrb(orbId, ItemKind.ORB.getId(), x, y, ORB_RADIUS, velocityX, velocityY);
             orbs.put(orbId, orb);
         }
     }

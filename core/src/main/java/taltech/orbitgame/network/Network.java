@@ -477,6 +477,7 @@ public class Network {
 
     public static class OrbState {
         public int orbId;
+        public int itemType;
         /** Center position in world coordinates. */
         public float x;
         public float y;
@@ -556,6 +557,7 @@ public class Network {
     public static final class ItemType {
         public static final int NONE = ItemKind.NONE.getId();
         public static final int ORB = ItemKind.ORB.getId();
+        public static final int STARTER_SHOTGUN = ItemKind.STARTER_SHOTGUN.getId();
 
         private ItemType() {
         }

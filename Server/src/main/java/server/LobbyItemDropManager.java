@@ -1,7 +1,6 @@
 package server;
 
 import taltech.orbitgame.item.ItemKind;
-import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.world.MapCollisionGrid;
 import server.model.ServerOrb;
@@ -38,7 +37,8 @@ public class LobbyItemDropManager {
 
     public void spawnOrbsAroundNpc(Npc npc) {
         int dropCount = ORB_DROP_MIN + random.nextInt(ORB_DROP_MAX - ORB_DROP_MIN + 1);
-        spawnOrbsAroundPoint(
+        spawnItemsAroundPoint(
+            ItemKind.ORB.getId(),
             npc.getPosition().x,
             npc.getPosition().y,
             dropCount,
@@ -48,6 +48,15 @@ public class LobbyItemDropManager {
     }
 
     public void spawnOrbsAroundPoint(float centerX, float centerY, int dropCount, float minDistance, float maxDistance) {
+        spawnItemsAroundPoint(ItemKind.ORB.getId(), centerX, centerY, dropCount, minDistance, maxDistance);
+    }
+
+    public void spawnItemsAroundPoint(int itemTypeId,
+                                      float centerX,
+                                      float centerY,
+                                      int dropCount,
+                                      float minDistance,
+                                      float maxDistance) {
         for (int i = 0; i < dropCount; i++) {
             float x = centerX;
             float y = centerY;
@@ -78,7 +87,7 @@ public class LobbyItemDropManager {
             float velocityY = (float) Math.sin(angle) * initialSpeed;
 
             int orbId = nextOrbId++;
-            ServerOrb orb = new ServerOrb(orbId, x, y, ORB_RADIUS, velocityX, velocityY);
+            ServerOrb orb = new ServerOrb(orbId, itemTypeId, x, y, ORB_RADIUS, velocityX, velocityY);
             orbs.put(orbId, orb);
         }
     }

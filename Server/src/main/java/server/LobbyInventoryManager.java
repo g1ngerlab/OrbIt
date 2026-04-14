@@ -5,7 +5,6 @@ import taltech.orbitgame.inventory.InventoryLayout;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.item.ItemRegistry;
 import taltech.orbitgame.item.ItemStack;
-import taltech.orbitgame.world.MapCollisionGrid;
 
 import java.util.Map;
 
@@ -22,20 +21,14 @@ public class LobbyInventoryManager {
 
     private final Map<Integer, LobbyPlayer> players;
     private final Map<Integer, ItemStack[]> playerInventories;
-    private final LobbyBroadcaster broadcaster;
     private final LobbyItemDropManager itemDropManager;
-    private final MapCollisionGrid collisionGrid;
 
     public LobbyInventoryManager(Map<Integer, LobbyPlayer> players,
                                   Map<Integer, ItemStack[]> playerInventories,
-                                  LobbyBroadcaster broadcaster,
-                                  LobbyItemDropManager itemDropManager,
-                                  MapCollisionGrid collisionGrid) {
+                                  LobbyItemDropManager itemDropManager) {
         this.players = players;
         this.playerInventories = playerInventories;
-        this.broadcaster = broadcaster;
         this.itemDropManager = itemDropManager;
-        this.collisionGrid = collisionGrid;
     }
 
     public ItemStack[] createEmptyInventory() {
@@ -54,38 +47,54 @@ public class LobbyInventoryManager {
 
         int remaining = amount;
         int maxStack = Math.max(1, ItemRegistry.getMaxStack(itemTypeId));
+        boolean weaponItem = ItemRegistry.isWeapon(itemTypeId);
 
-        for (int i = 0; i < inventory.length; i++) {
-            if (!InventoryLayout.isMainSlot(i)) {
-                continue;
-            }
-            ItemStack slot = inventory[i];
-            if (slot == null || slot.getItemTypeId() != itemTypeId || slot.getAmount() >= maxStack) {
-                continue;
-            }
-
-            int canAdd = Math.min(remaining, maxStack - slot.getAmount());
-            slot.add(canAdd);
-            remaining -= canAdd;
+        if (weaponItem) {
+            remaining = fillExistingStacks(inventory, itemTypeId, remaining, maxStack,
+                InventoryLayout.MAIN_SLOT_COUNT, InventoryLayout.TOTAL_SLOT_COUNT);
             if (remaining <= 0) {
                 sendInventoryUpdate(clientId);
                 return true;
             }
+            remaining = fillExistingStacks(inventory, itemTypeId, remaining, maxStack,
+                0, InventoryLayout.MAIN_SLOT_COUNT);
+            if (remaining <= 0) {
+                sendInventoryUpdate(clientId);
+                return true;
+            }
+
+            remaining = fillEmptySlots(inventory, itemTypeId, remaining, maxStack,
+                InventoryLayout.MAIN_SLOT_COUNT, InventoryLayout.TOTAL_SLOT_COUNT);
+            if (remaining <= 0) {
+                sendInventoryUpdate(clientId);
+                return true;
+            }
+            remaining = fillEmptySlots(inventory, itemTypeId, remaining, maxStack,
+                0, InventoryLayout.MAIN_SLOT_COUNT);
+            if (remaining <= 0) {
+                sendInventoryUpdate(clientId);
+                return true;
+            }
+
+            if (remaining < amount) {
+                sendInventoryUpdate(clientId);
+                return true;
+            }
+            return false;
         }
 
-        for (int i = 0; i < inventory.length; i++) {
-            if (!InventoryLayout.isMainSlot(i)) {
-                continue;
-            }
-            if (inventory[i] == null || inventory[i].isEmpty()) {
-                int put = Math.min(remaining, maxStack);
-                inventory[i] = new ItemStack(itemTypeId, put);
-                remaining -= put;
-                if (remaining <= 0) {
-                    sendInventoryUpdate(clientId);
-                    return true;
-                }
-            }
+        remaining = fillExistingStacks(inventory, itemTypeId, remaining, maxStack,
+            0, InventoryLayout.MAIN_SLOT_COUNT);
+        if (remaining <= 0) {
+            sendInventoryUpdate(clientId);
+            return true;
+        }
+
+        remaining = fillEmptySlots(inventory, itemTypeId, remaining, maxStack,
+            0, InventoryLayout.MAIN_SLOT_COUNT);
+        if (remaining <= 0) {
+            sendInventoryUpdate(clientId);
+            return true;
         }
 
         if (remaining < amount) {
@@ -100,9 +109,6 @@ public class LobbyInventoryManager {
         LobbyPlayer player = players.get(clientId);
         ItemStack[] inventory = playerInventories.get(clientId);
         if (player == null || inventory == null || slotIndex < 0 || slotIndex >= inventory.length) {
-            return;
-        }
-        if (InventoryLayout.isWeaponSlot(slotIndex)) {
             return;
         }
         ItemStack stack = inventory[slotIndex];
@@ -184,6 +190,38 @@ public class LobbyInventoryManager {
         }
     }
 
+    public void grantStarterWeaponIfMissing(int clientId, int weaponTypeId) {
+        if (!ItemRegistry.isWeapon(weaponTypeId)) {
+            return;
+        }
+        ItemStack[] inventory = playerInventories.get(clientId);
+        if (inventory == null) {
+            return;
+        }
+
+        for (ItemStack slot : inventory) {
+            if (slot != null && !slot.isEmpty() && slot.getItemTypeId() == weaponTypeId) {
+                return;
+            }
+        }
+
+        for (int i = InventoryLayout.MAIN_SLOT_COUNT; i < InventoryLayout.TOTAL_SLOT_COUNT; i++) {
+            if (inventory[i] == null || inventory[i].isEmpty()) {
+                inventory[i] = new ItemStack(weaponTypeId, 1);
+                sendInventoryUpdate(clientId);
+                return;
+            }
+        }
+
+        for (int i = 0; i < InventoryLayout.MAIN_SLOT_COUNT; i++) {
+            if (inventory[i] == null || inventory[i].isEmpty()) {
+                inventory[i] = new ItemStack(weaponTypeId, 1);
+                sendInventoryUpdate(clientId);
+                return;
+            }
+        }
+    }
+
     private boolean dropStackFromPlayerPosition(LobbyPlayer player, int itemTypeId, int amount) {
         if (amount <= 0) {
             return false;
@@ -195,13 +233,17 @@ public class LobbyInventoryManager {
 
         float centerX = player.getX() + PLAYER_WIDTH * 0.5f;
         float centerY = player.getY() + PLAYER_HEIGHT * 0.5f;
-        if (itemTypeId == ItemKind.ORB.getId()) {
-            itemDropManager.spawnOrbsAroundPoint(centerX, centerY, amount, PLAYER_DROP_MIN_DISTANCE, PLAYER_DROP_MAX_DISTANCE);
-            return true;
-        }
-
-        return false;
+        itemDropManager.spawnItemsAroundPoint(
+            itemTypeId,
+            centerX,
+            centerY,
+            amount,
+            PLAYER_DROP_MIN_DISTANCE,
+            PLAYER_DROP_MAX_DISTANCE
+        );
+        return true;
     }
+
 
     private void sendInventoryUpdate(int clientId) {
         LobbyPlayer player = players.get(clientId);
@@ -234,6 +276,47 @@ public class LobbyInventoryManager {
             return true;
         }
         return ItemRegistry.isWeapon(itemTypeId);
+    }
+
+    private int fillExistingStacks(ItemStack[] inventory,
+                                   int itemTypeId,
+                                   int remaining,
+                                   int maxStack,
+                                   int fromInclusive,
+                                   int toExclusive) {
+        for (int i = fromInclusive; i < toExclusive && i < inventory.length; i++) {
+            ItemStack slot = inventory[i];
+            if (slot == null || slot.getItemTypeId() != itemTypeId || slot.getAmount() >= maxStack) {
+                continue;
+            }
+            int canAdd = Math.min(remaining, maxStack - slot.getAmount());
+            slot.add(canAdd);
+            remaining -= canAdd;
+            if (remaining <= 0) {
+                return 0;
+            }
+        }
+        return remaining;
+    }
+
+    private int fillEmptySlots(ItemStack[] inventory,
+                               int itemTypeId,
+                               int remaining,
+                               int maxStack,
+                               int fromInclusive,
+                               int toExclusive) {
+        for (int i = fromInclusive; i < toExclusive && i < inventory.length; i++) {
+            if (inventory[i] != null && !inventory[i].isEmpty()) {
+                continue;
+            }
+            int put = Math.min(remaining, maxStack);
+            inventory[i] = new ItemStack(itemTypeId, put);
+            remaining -= put;
+            if (remaining <= 0) {
+                return 0;
+            }
+        }
+        return remaining;
     }
 }
 
