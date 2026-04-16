@@ -37,6 +37,8 @@ public class Lobby {
     private static final int ROBOT_COUNT = 40;
     private static final float ROBOT_TERRITORY_RADIUS = 120f;
     private static final float MIN_ROBOT_SPAWN_DISTANCE = 48f;
+    private static final int PLAYER_SPAWN_ATTEMPTS = 600;
+    private static final float PLAYER_SPAWN_SCAN_STEP = 8f;
 
     private static final float PLAYER_WIDTH = 32f;
     private static final float PLAYER_HEIGHT = 48f;
@@ -442,8 +444,82 @@ public class Lobby {
 
     private LobbyPlayer createPlayer(int clientId, String playerName, int characterId, Connection connection) {
         int normalizedCharacterId = characterId <= 0 ? 1 : characterId;
+        float[] spawn = findRandomPlayerSpawn();
         return new LobbyPlayer(clientId, playerName, normalizedCharacterId,
-            connection, 400f, 300f, PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
+            connection, spawn[0], spawn[1], PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
+    }
+
+    private float[] findRandomPlayerSpawn() {
+        float maxSpawnX = Math.max(0f, collisionGrid.getMapWidthPx() - PLAYER_WIDTH);
+        float maxSpawnY = Math.max(0f, collisionGrid.getMapHeightPx() - PLAYER_HEIGHT);
+
+        for (int attempt = 0; attempt < PLAYER_SPAWN_ATTEMPTS; attempt++) {
+            float x = maxSpawnX <= 0f ? 0f : random.nextFloat() * maxSpawnX;
+            float y = maxSpawnY <= 0f ? 0f : random.nextFloat() * maxSpawnY;
+            if (isValidPlayerSpawn(x, y)) {
+                return new float[] {x, y};
+            }
+        }
+
+        for (float y = 0f; y <= maxSpawnY; y += PLAYER_SPAWN_SCAN_STEP) {
+            for (float x = 0f; x <= maxSpawnX; x += PLAYER_SPAWN_SCAN_STEP) {
+                if (isValidPlayerSpawn(x, y)) {
+                    return new float[] {x, y};
+                }
+            }
+        }
+
+        float[] randomOpen = collisionGrid.findRandomOpenPosition(random);
+        float fallbackX = clamp(randomOpen[0] - PLAYER_WIDTH * 0.5f, 0f, maxSpawnX);
+        float fallbackY = clamp(randomOpen[1] - PLAYER_HEIGHT * 0.5f, 0f, maxSpawnY);
+        if (isValidPlayerSpawn(fallbackX, fallbackY)) {
+            return new float[] {fallbackX, fallbackY};
+        }
+        return new float[] {0f, 0f};
+    }
+
+    private boolean isValidPlayerSpawn(float x, float y) {
+        float maxSpawnX = collisionGrid.getMapWidthPx() - PLAYER_WIDTH;
+        float maxSpawnY = collisionGrid.getMapHeightPx() - PLAYER_HEIGHT;
+        if (x < 0f || y < 0f || x > maxSpawnX || y > maxSpawnY) {
+            return false;
+        }
+
+        float right = x + PLAYER_WIDTH - 0.01f;
+        float top = y + PLAYER_HEIGHT - 0.01f;
+        float centerX = x + PLAYER_WIDTH * 0.5f;
+        float centerY = y + PLAYER_HEIGHT * 0.5f;
+
+        if (collisionGrid.isBlocked(x, y)
+            || collisionGrid.isBlocked(right, y)
+            || collisionGrid.isBlocked(x, top)
+            || collisionGrid.isBlocked(right, top)
+            || collisionGrid.isBlocked(centerX, centerY)) {
+            return false;
+        }
+
+        for (LobbyPlayer existing : players.values()) {
+            if (rectanglesOverlap(x, y, PLAYER_WIDTH, PLAYER_HEIGHT,
+                existing.getX(), existing.getY(), PLAYER_WIDTH, PLAYER_HEIGHT)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean rectanglesOverlap(float ax, float ay, float aw, float ah,
+                                             float bx, float by, float bw, float bh) {
+        return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    private static float clamp(float value, float min, float max) {
+        if (value < min) {
+            return min;
+        }
+        if (value > max) {
+            return max;
+        }
+        return value;
     }
 
     private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
