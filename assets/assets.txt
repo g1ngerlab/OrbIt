@@ -1,13 +1,27 @@
 Buttons/button.png
 Buttons/buttonPressed.png
+Buttons/music_button.png
 Buttons/orb.png
 GameSeshMusic/Knife Party - 'Bonfire'-419194644.mp3
 GameSeshMusic/NOISE MOTHER-233127447.mp3
 GameSeshMusic/SHOPLIFTERS-1869278771.mp3
+GameSeshMusic/aesthetics of self-destruction.mp3
+GameSeshMusic/blast.mp3
+GameSeshMusic/kyoto.mp3
+GameSeshMusic/rightpassword.mp3
+GameSeshMusic/somewhereibelong.mp3
+GameSeshMusic/ukradet_i_pozovet.mp3
+GameSeshMusic/viki_show.mp3
 LobbyBg.png
 LobbyMusic/Cyberia lyr2-132369550.mp3
 LobbyMusic/I Need To Feel Loved-1935759142.mp3
+LobbyMusic/fontanchik.mp3
 LobbyMusic/joon-1493758854.mp3
+LobbyMusic/lobby.mp3
+LobbyMusic/lobbygood.mp3
+LobbyMusic/onon.mp3
+LobbyMusic/outcast.mp3
+LobbyMusic/practisemode.mp3
 MainMenuAssets/orbit.png
 Space Background Laptop.gif
 UI/inventory_border.png

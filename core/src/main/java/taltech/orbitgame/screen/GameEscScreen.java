@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Image;
 import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider;
 import com.badlogic.gdx.scenes.scene2d.ui.Slider.SliderStyle;
@@ -16,6 +17,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
+import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.audio.AudioManager;
@@ -26,6 +28,9 @@ public class GameEscScreen implements Screen {
     private static final float ESC_BUTTON_WIDTH = 260f;
     private static final float ESC_BUTTON_HEIGHT = 60f;
     private static final float ESC_BUTTON_FONT_SCALE = 0.78f;
+    private static final float OPTIONS_BACK_BUTTON_SCALE = 0.55f;
+    private static final float MUSIC_CONTROL_WIDTH = 450f;
+    private static final float MUSIC_CONTROL_PRESS_SCALE = 0.96f;
 
     private final Main game;
     private final GameScreen gameScreen;
@@ -33,6 +38,12 @@ public class GameEscScreen implements Screen {
     private final Stage stage;
     private final Texture overlay;
     private final TextButton.TextButtonStyle buttonStyle;
+    private final Texture musicControlTexture;
+    private Slider trackSeekSlider;
+    private Label trackSeekValueLabel;
+    private boolean updatingTrackSeekSlider;
+    private boolean optionsVisible;
+    private float trackSeekMaxSeconds = 1f;
 
     public GameEscScreen(Main game, GameScreen gameScreen) {
         this(game, gameScreen, null);
@@ -60,11 +71,16 @@ public class GameEscScreen implements Screen {
         this.buttonStyle.font = font;
         this.buttonStyle.up = new TextureRegionDrawable(buttonTexture);
         this.buttonStyle.down = new TextureRegionDrawable(buttonPressedTexture);
+        this.musicControlTexture = new Texture(Gdx.files.internal("Buttons/music_button.png"));
 
         setupUI();
     }
 
     private void setupUI() {
+        optionsVisible = false;
+        trackSeekSlider = null;
+        trackSeekValueLabel = null;
+
         Table table = new Table();
         table.setFillParent(true);
         table.center();
@@ -116,6 +132,7 @@ public class GameEscScreen implements Screen {
     private void showOptions(Table parentTable) {
         // Clear and create options menu
         parentTable.clearChildren();
+        optionsVisible = true;
 
         BitmapFont font = FontManager.getMenuFont();
         Label.LabelStyle labelStyle = new Label.LabelStyle(font, null);
@@ -161,8 +178,65 @@ public class GameEscScreen implements Screen {
         // Initialize value label AFTER listener is added
         sfxValueLabel.setText((int)(sfxSlider.getValue() * 100) + "%");
 
+        Label playbackLabel = new Label("Music Playback", labelStyle);
+        Image playbackControl = new Image(new TextureRegionDrawable(musicControlTexture));
+        float controlWidth = MUSIC_CONTROL_WIDTH;
+        float controlHeight = controlWidth * (musicControlTexture.getHeight() / (float) musicControlTexture.getWidth());
+        playbackControl.setSize(controlWidth, controlHeight);
+        playbackControl.setOrigin(controlWidth * 0.5f, controlHeight * 0.5f);
+        playbackControl.addListener(new ClickListener() {
+            @Override
+            public boolean touchDown(InputEvent event, float x, float y, int pointer, int button) {
+                playbackControl.setScale(MUSIC_CONTROL_PRESS_SCALE);
+                return super.touchDown(event, x, y, pointer, button);
+            }
+
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                float relativeX = x / event.getListenerActor().getWidth();
+                if (relativeX < 0.33f) {
+                    AudioManager.getInstance().playPreviousTrack();
+                } else if (relativeX > 0.66f) {
+                    AudioManager.getInstance().playNextTrack();
+                } else {
+                    AudioManager.getInstance().togglePauseResumeCurrentMusic();
+                }
+                refreshTrackSeekValue();
+            }
+
+            @Override
+            public void touchUp(InputEvent event, float x, float y, int pointer, int button) {
+                playbackControl.setScale(1f);
+                super.touchUp(event, x, y, pointer, button);
+            }
+        });
+
+        trackSeekMaxSeconds = resolveTrackSeekMaxSeconds();
+        Slider seekSlider = new Slider(0f, trackSeekMaxSeconds, 0.1f, false, sliderStyle);
+        seekSlider.setValue(clampTrackSeconds(
+            AudioManager.getInstance().getCurrentTrackPositionSeconds(),
+            trackSeekMaxSeconds
+        ));
+        Label seekValueLabel = new Label("", labelStyle);
+        seekValueLabel.setAlignment(Align.center);
+        seekSlider.addListener(new ChangeListener() {
+            @Override
+            public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
+                if (updatingTrackSeekSlider) {
+                    return;
+                }
+                float target = clampTrackSeconds(seekSlider.getValue(), trackSeekMaxSeconds);
+                AudioManager.getInstance().seekCurrentTrackSeconds(target);
+                seekValueLabel.setText(formatTrackTime(target));
+            }
+        });
+        seekValueLabel.setText(formatTrackTime(seekSlider.getValue()));
+        this.trackSeekSlider = seekSlider;
+        this.trackSeekValueLabel = seekValueLabel;
+
         // Back button
         TextButton backButton = new TextButton("Back", buttonStyle);
+        backButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         backButton.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -179,7 +253,7 @@ public class GameEscScreen implements Screen {
 
         Table musicSliderRow = new Table();
         musicSliderRow.add(musicSlider).width(250);
-        parentTable.add(musicSliderRow).padBottom(40).row();
+        parentTable.add(musicSliderRow).padBottom(16).row();
 
         // Add SFX Volume row - label above slider
         Table sfxLabelRow = new Table();
@@ -189,10 +263,21 @@ public class GameEscScreen implements Screen {
 
         Table sfxSliderRow = new Table();
         sfxSliderRow.add(sfxSlider).width(250);
-        parentTable.add(sfxSliderRow).padBottom(60).row();
+        parentTable.add(sfxSliderRow).padBottom(12).row();
+
+        parentTable.add(playbackLabel).padBottom(3).row();
+        parentTable.add(playbackControl).size(controlWidth, controlHeight).padBottom(5).row();
+
+        parentTable.add(seekValueLabel).width(300).padBottom(1).row();
+
+        Table seekSliderRow = new Table();
+        seekSliderRow.add(seekSlider).width(300);
+        parentTable.add(seekSliderRow).padBottom(12).row();
 
         // Add back button
-        parentTable.add(backButton).row();
+        parentTable.add(backButton)
+            .size(ESC_BUTTON_WIDTH * OPTIONS_BACK_BUTTON_SCALE, ESC_BUTTON_HEIGHT * OPTIONS_BACK_BUTTON_SCALE)
+            .row();
     }
 
     private SliderStyle createSliderStyle() {
@@ -259,6 +344,7 @@ public class GameEscScreen implements Screen {
 
         // Draw UI
         stage.act(delta);
+        refreshTrackSeekValue();
         stage.draw();
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
@@ -290,6 +376,48 @@ public class GameEscScreen implements Screen {
     public void dispose() {
         stage.dispose();
         overlay.dispose();
+        musicControlTexture.dispose();
         // Do not dispose gameScreen here as we might resume it
+    }
+
+    private void refreshTrackSeekValue() {
+        if (!optionsVisible || trackSeekSlider == null || trackSeekValueLabel == null) {
+            return;
+        }
+        if (trackSeekSlider.isDragging()) {
+            return;
+        }
+
+        float dynamicMax = resolveTrackSeekMaxSeconds();
+        if (Math.abs(dynamicMax - trackSeekMaxSeconds) > 0.2f) {
+            trackSeekMaxSeconds = dynamicMax;
+            updatingTrackSeekSlider = true;
+            trackSeekSlider.setRange(0f, trackSeekMaxSeconds);
+            updatingTrackSeekSlider = false;
+        }
+
+        float position = clampTrackSeconds(
+            AudioManager.getInstance().getCurrentTrackPositionSeconds(),
+            trackSeekMaxSeconds
+        );
+        updatingTrackSeekSlider = true;
+        trackSeekSlider.setValue(position);
+        trackSeekValueLabel.setText(formatTrackTime(position));
+        updatingTrackSeekSlider = false;
+    }
+
+    private float resolveTrackSeekMaxSeconds() {
+        return Math.max(1f, AudioManager.getInstance().getCurrentTrackDurationSeconds());
+    }
+
+    private float clampTrackSeconds(float seconds, float max) {
+        return Math.max(0f, Math.min(max, seconds));
+    }
+
+    private String formatTrackTime(float seconds) {
+        int totalSeconds = Math.max(0, Math.round(seconds));
+        int minutes = totalSeconds / 60;
+        int sec = totalSeconds % 60;
+        return String.format("%02d:%02d", minutes, sec);
     }
 }

@@ -465,4 +465,5 @@ public class GameRenderer {
     public SpriteBatch getBatch() {
         return batch;
     }
+
 }
