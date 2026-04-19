@@ -8,13 +8,16 @@ import taltech.orbitgame.item.ItemKind;
 public class Network {
     // Note: Use NetworkConfig.getServerHost() and NetworkConfig.getServerPort() for runtime configuration
     // To switch between servers, edit NetworkConfig.java and comment/uncomment the configuration lines
-    //public static final int PORT = 54555;  // Local server
-    public static final int PORT = 8080;  // Remote TalTech server
+    public static final int PORT = 54555;  // Local server
+    //public static final int PORT = 8080;  // Remote TalTech server
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
         kryo.register(Login.class);
         kryo.register(Registration.class);
+        kryo.register(LoginError.class);
+        kryo.register(CheckPlayerAvailability.class);
+        kryo.register(PlayerAvailabilityResponse.class);
         kryo.register(MoveRequest.class);
         kryo.register(InputState.class);
         kryo.register(KeyPressEvent.class);
@@ -73,6 +76,40 @@ public class Network {
     public static class Registration {
         public int id;
         public String name;
+    }
+
+    public static class LoginError {
+        public String reason;
+
+        public LoginError() {}
+
+        public LoginError(String reason) {
+            this.reason = reason;
+        }
+    }
+
+    public static class CheckPlayerAvailability {
+        public String playerName;
+
+        public CheckPlayerAvailability() {}
+
+        public CheckPlayerAvailability(String playerName) {
+            this.playerName = playerName;
+        }
+    }
+
+    public static class PlayerAvailabilityResponse {
+        public String playerName;
+        public boolean available;
+        public String reason;
+
+        public PlayerAvailabilityResponse() {}
+
+        public PlayerAvailabilityResponse(String playerName, boolean available, String reason) {
+            this.playerName = playerName;
+            this.available = available;
+            this.reason = reason;
+        }
     }
 
     public static class MoveRequest {

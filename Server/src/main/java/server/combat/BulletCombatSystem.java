@@ -18,7 +18,7 @@ import java.util.Queue;
 public class BulletCombatSystem {
     public interface Callbacks {
         void onPlayerDamaged(LobbyPlayer player);
-        void onPlayerKilled(LobbyPlayer player);
+        void onPlayerKilled(LobbyPlayer player, int killerClientId);
         void onNpcKilled(Npc npc);
     }
 
@@ -152,7 +152,7 @@ public class BulletCombatSystem {
                 player.takeDamage(bulletDamage);
                 callbacks.onPlayerDamaged(player);
                 if (player.isDead()) {
-                    callbacks.onPlayerKilled(player);
+                    callbacks.onPlayerKilled(player, bullet.getOwnerClientId());
                 }
                 return true;
             }

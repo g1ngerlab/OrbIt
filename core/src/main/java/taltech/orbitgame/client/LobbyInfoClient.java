@@ -33,6 +33,7 @@ public class LobbyInfoClient {
     private LobbyInfoListener listener;
     private LobbyCreatedListener lobbyCreatedListener;
     private AllLobbiesListener allLobbiesListener;
+    private PlayerAvailabilityListener playerAvailabilityListener;
 
     public interface LobbyInfoListener {
         void onLobbyInfoReceived(Map<Integer, Integer> lobbyPlayerCounts);
@@ -45,6 +46,10 @@ public class LobbyInfoClient {
 
     public interface AllLobbiesListener {
         void onAllLobbiesReceived(List<Network.LobbyListItem> lobbies);
+    }
+
+    public interface PlayerAvailabilityListener {
+        void onAvailabilityChecked(String playerName, boolean available, String reason);
     }
 
     public LobbyInfoClient() {
@@ -97,6 +102,14 @@ public class LobbyInfoClient {
                         allLobbiesListener.onAllLobbiesReceived(new ArrayList<>(info.lobbies));
                     }
                 }
+                if (object instanceof Network.PlayerAvailabilityResponse) {
+                    Network.PlayerAvailabilityResponse response = (Network.PlayerAvailabilityResponse) object;
+                    System.out.println("[LobbyInfoClient] Player availability check: " + response.playerName +
+                        " available=" + response.available + " reason=" + response.reason);
+                    if (playerAvailabilityListener != null) {
+                        playerAvailabilityListener.onAvailabilityChecked(response.playerName, response.available, response.reason);
+                    }
+                }
             }
 
             @Override
@@ -120,6 +133,10 @@ public class LobbyInfoClient {
 
     public void setAllLobbiesListener(AllLobbiesListener listener) {
         this.allLobbiesListener = listener;
+    }
+
+    public void setPlayerAvailabilityListener(PlayerAvailabilityListener listener) {
+        this.playerAvailabilityListener = listener;
     }
 
     public void connect() {
@@ -197,6 +214,18 @@ public class LobbyInfoClient {
             System.out.println("[LobbyInfoClient] Requested all lobbies");
         } else {
             System.out.println("[LobbyInfoClient] Cannot request lobbies - not connected yet");
+        }
+    }
+
+    public void checkPlayerAvailability(String playerName) {
+        if (client.isConnected()) {
+            client.sendTCP(new Network.CheckPlayerAvailability(playerName));
+            System.out.println("[LobbyInfoClient] Checking player availability: " + playerName);
+        } else {
+            System.out.println("[LobbyInfoClient] Cannot check availability - not connected yet");
+            if (playerAvailabilityListener != null) {
+                playerAvailabilityListener.onAvailabilityChecked(playerName, false, "Not connected to server");
+            }
         }
     }
 

@@ -259,9 +259,9 @@ public class AuthScreen implements Screen {
         authService.login(loginField.getText(), passwordField.getText(), new SupabaseAuthService.AuthCallback() {
             @Override
             public void onSuccess(AuthSession session) {
-                requestInFlight = false;
-                statusLabel.setText("Welcome, " + session.getUsername() + "!");
-                goToMainMenu();
+                // First check if player is already online before proceeding
+                statusLabel.setText("Verifying player is not already in game...");
+                checkPlayerAvailability(session.getUsername());
             }
 
             @Override
@@ -270,6 +270,46 @@ public class AuthScreen implements Screen {
                 statusLabel.setText(message);
             }
         });
+    }
+
+    private void checkPlayerAvailability(String playerName) {
+        if (lobbyInfoClient == null) {
+            // If no lobby info client available, proceed anyway
+            requestInFlight = false;
+            statusLabel.setText("Welcome, " + playerName + "!");
+            goToMainMenu();
+            return;
+        }
+
+        statusLabel.setText("Verifying player availability...");
+
+        // Set up listener for availability response first
+        lobbyInfoClient.setPlayerAvailabilityListener((name, available, reason) -> {
+            Gdx.app.postRunnable(() -> {
+                requestInFlight = false;
+                if (available) {
+                    // Player is available, proceed to main menu
+                    statusLabel.setText("Welcome, " + playerName + "!");
+                    goToMainMenu();
+                } else {
+                    // Player is already in game - block login
+                    statusLabel.setText("ERROR: " + reason);
+                    System.out.println("[AuthScreen] Login blocked: " + reason);
+                }
+            });
+        });
+
+        // Try to send check request
+        if (lobbyInfoClient.isConnected()) {
+            System.out.println("[AuthScreen] Checking player availability: " + playerName);
+            lobbyInfoClient.checkPlayerAvailability(playerName);
+        } else {
+            // Server not connected, proceed anyway
+            System.out.println("[AuthScreen] Server not connected, allowing login anyway");
+            requestInFlight = false;
+            statusLabel.setText("Welcome, " + playerName + "!");
+            goToMainMenu();
+        }
     }
 
     private TextButton createButton(String text) {

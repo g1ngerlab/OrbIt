@@ -81,6 +81,13 @@ public class GameClient {
 
             @Override
             public void received(Connection connection, Object object) {
+                if (object instanceof Network.LoginError) {
+                    Network.LoginError error = (Network.LoginError) object;
+                    System.out.println("[Client] Login error: " + error.reason);
+                    // Disconnect and notify about error
+                    client.close();
+                    return;
+                }
                 if (object instanceof Network.Registration) {
                     Network.Registration reg = (Network.Registration) object;
                     clientId = reg.id;
