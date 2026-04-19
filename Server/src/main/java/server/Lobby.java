@@ -684,12 +684,18 @@ public class Lobby {
     }
 
     private void onPlayerKilled(LobbyPlayer player, String reason) {
+        onPlayerKilled(player, reason, -1);
+    }
+
+    private void onPlayerKilled(LobbyPlayer player, String reason, int killerClientId) {
         LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " killed by " + reason + "!");
         if ("bullet".equals(reason) || "freeze".equals(reason)) {
             inventoryManager.dropAllInventoryItems(player);
         }
         addPlayerCorpse(player);
-        broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId()));
+        Network.EntityDied entityDied = new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId());
+        entityDied.killerId = killerClientId;
+        broadcaster.broadcastToAll(entityDied);
         players.remove(player.getClientId());
         playerInventories.remove(player.getClientId());
         if (players.isEmpty()) {
@@ -886,8 +892,8 @@ public class Lobby {
         }
 
         @Override
-        public void onPlayerKilled(LobbyPlayer player) {
-            Lobby.this.onPlayerKilled(player, "bullet");
+        public void onPlayerKilled(LobbyPlayer player, int killerClientId) {
+            Lobby.this.onPlayerKilled(player, "bullet", killerClientId);
         }
 
         @Override

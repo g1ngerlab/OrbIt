@@ -30,6 +30,7 @@ public class PlayerInputListener implements Listener {
     private final Map<Integer, String> connectedClients;
     private final Map<Integer, Lobby> lobbies;
     private final Map<Integer, Integer> clientToLobby; // Maps clientId to lobbyId
+    private final Map<Integer, String> reservedNames; // Maps connectionId to reserved player name (passed availability check)
     private final ScheduledExecutorService npcLoop;
     private final ScheduledExecutorService lobbyCreationExecutor;
     private final AtomicInteger nextLobbyId = new AtomicInteger(1); // Counter for generating unique lobby IDs
@@ -38,6 +39,7 @@ public class PlayerInputListener implements Listener {
         this.connectedClients = new ConcurrentHashMap<>();
         this.lobbies = new ConcurrentHashMap<>();
         this.clientToLobby = new ConcurrentHashMap<>();
+        this.reservedNames = new ConcurrentHashMap<>();
         this.server = new Server();
         this.npcLoop = Executors.newSingleThreadScheduledExecutor();
         this.lobbyCreationExecutor = Executors.newSingleThreadScheduledExecutor();
@@ -86,6 +88,9 @@ public class PlayerInputListener implements Listener {
                 }
             }
         }
+
+        // Also remove reserved name if this connection had one
+        reservedNames.remove(connection.getID());
     }
 
     @Override
@@ -102,6 +107,11 @@ public class PlayerInputListener implements Listener {
 
         if (object instanceof Network.RequestLobbyInfo) {
             handleRequestLobbyInfo(connection);
+            return;
+        }
+
+        if (object instanceof Network.CheckPlayerAvailability) {
+            handleCheckPlayerAvailability(connection, (Network.CheckPlayerAvailability) object);
             return;
         }
 
@@ -204,9 +214,51 @@ public class PlayerInputListener implements Listener {
             new Object[]{connection.getID(), lobbyInfo.lobbyPlayerCounts});
     }
 
+    private void handleCheckPlayerAvailability(Connection connection, Network.CheckPlayerAvailability request) {
+        String playerName = sanitizePlayerName(request.playerName, connection.getID());
+
+        // Check if this player name is already connected or reserved
+        if (connectedClients.containsValue(playerName) || reservedNames.containsValue(playerName)) {
+            LOGGER.log(Level.INFO, "[Server] Player availability check: {0} is UNAVAILABLE (already in game)", playerName);
+            Network.PlayerAvailabilityResponse response = new Network.PlayerAvailabilityResponse(
+                playerName, false, "Player already in game"
+            );
+            connection.sendTCP(response);
+        } else {
+            LOGGER.log(Level.INFO, "[Server] Player availability check: {0} is AVAILABLE", playerName);
+            // Reserve this name for this connection
+            reservedNames.put(connection.getID(), playerName);
+            LOGGER.log(Level.INFO, "[Server] Reserved name {0} for connection {1}", new Object[]{playerName, connection.getID()});
+            Network.PlayerAvailabilityResponse response = new Network.PlayerAvailabilityResponse(
+                playerName, true, "Available"
+            );
+            connection.sendTCP(response);
+        }
+    }
+
     private void handleLogin(Connection connection, Network.Login login) {
         String name = sanitizePlayerName(login == null ? null : login.name, connection.getID());
+
+        // Check if this player name is already connected
+        if (connectedClients.containsValue(name)) {
+            LOGGER.log(Level.WARNING, "[Server] Login rejected: Player {0} is already in game", name);
+            Network.LoginError error = new Network.LoginError("Player already in game");
+            connection.sendTCP(error);
+            return;
+        }
+
+        // Check if the name was reserved by this connection
+        String reservedName = reservedNames.get(connection.getID());
+        if (reservedName != null && !reservedName.equals(name)) {
+            LOGGER.log(Level.WARNING, "[Server] Login rejected: Player trying to login as {0} but reserved {1}", new Object[]{name, reservedName});
+            Network.LoginError error = new Network.LoginError("Player name mismatch - already reserved different name");
+            connection.sendTCP(error);
+            return;
+        }
+
         connectedClients.put(connection.getID(), name);
+        // Clear the reservation as it's now officially logged in
+        reservedNames.remove(connection.getID());
 
         LOGGER.log(Level.INFO, "[Server] Client logged in: {0}", name);
 

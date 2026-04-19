@@ -104,8 +104,12 @@ public class NetworkEventHandler {
                     }
 
                     // Check if WE killed this player
+                    System.out.println("[NetworkEventHandler] EntityDied: killerId=" + entityDied.killerId + ", myId=" + myId + ", deadPlayerId=" + entityDied.entityId);
                     if (entityDied.killerId == myId) {
+                        System.out.println("[NetworkEventHandler] I killed someone! Adding kill. Total kills: " + (localPlayer.getKillCount() + 1));
                         localPlayer.addKill();
+                    } else if (entityDied.killerId >= 0) {
+                        System.out.println("[NetworkEventHandler] Someone else killed this player. killerId=" + entityDied.killerId);
                     }
                 }
             }
