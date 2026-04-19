@@ -103,6 +103,15 @@ public class GameEscScreen implements Screen {
             }
         });
 
+        TextButton shopButton = new TextButton("Shop", buttonStyle);
+        shopButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
+        shopButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                openShop();
+            }
+        });
+
         TextButton skipTimerButton = new TextButton("Skip to Freeze Test", buttonStyle);
         skipTimerButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         skipTimerButton.addListener(new ClickListener() {
@@ -123,6 +132,7 @@ public class GameEscScreen implements Screen {
 
         table.add(resumeButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(optionsButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
+        table.add(shopButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(skipTimerButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(leaveButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).row();
 
@@ -322,6 +332,10 @@ public class GameEscScreen implements Screen {
             LobbyInfoClient clientToUse = (lobbyInfoClient != null) ? lobbyInfoClient : new LobbyInfoClient();
             game.setScreen(new MainMenuScreen(game, clientToUse));
         });
+    }
+
+    private void openShop() {
+        game.setScreen(new InGameShopScreen(game, gameScreen, lobbyInfoClient));
     }
 
     @Override

@@ -50,6 +50,8 @@ public class Network {
         kryo.register(InventoryStateUpdate.class);
         kryo.register(DropItemRequest.class);
         kryo.register(MoveInventoryItemRequest.class);
+        kryo.register(ShopPurchaseRequest.class);
+        kryo.register(ShopPurchaseResult.class);
         kryo.register(PlayerHealthUpdate.class);
         kryo.register(EntityDied.class);
         kryo.register(CreateLobby.class);
@@ -562,10 +564,49 @@ public class Network {
         }
     }
 
+    /**
+     * Sent by client to buy an item from in-game shop with ORB currency.
+     */
+    public static class ShopPurchaseRequest {
+        public int itemType;
+        public int amount;
+        public int orbCost;
+
+        public ShopPurchaseRequest() {}
+
+        public ShopPurchaseRequest(int itemType, int amount, int orbCost) {
+            this.itemType = itemType;
+            this.amount = amount;
+            this.orbCost = orbCost;
+        }
+    }
+
+    /**
+     * Sent by server as a response for shop purchase request.
+     */
+    public static class ShopPurchaseResult {
+        public boolean success;
+        public String message;
+        public int itemType;
+        public int amount;
+        public int orbCost;
+
+        public ShopPurchaseResult() {}
+
+        public ShopPurchaseResult(boolean success, String message, int itemType, int amount, int orbCost) {
+            this.success = success;
+            this.message = message;
+            this.itemType = itemType;
+            this.amount = amount;
+            this.orbCost = orbCost;
+        }
+    }
+
     public static final class ItemType {
         public static final int NONE = ItemKind.NONE.getId();
         public static final int ORB = ItemKind.ORB.getId();
         public static final int STARTER_SHOTGUN = ItemKind.STARTER_SHOTGUN.getId();
+        public static final int GOLDEN_FROG = ItemKind.GOLDEN_FROG.getId();
 
         private ItemType() {
         }

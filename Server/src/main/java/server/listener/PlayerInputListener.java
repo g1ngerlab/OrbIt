@@ -135,6 +135,11 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
+        if (object instanceof Network.ShopPurchaseRequest) {
+            handleShopPurchaseRequest(connection, (Network.ShopPurchaseRequest) object);
+            return;
+        }
+
         if (object instanceof Network.LobbyTimerDebugSkip) {
             handleLobbyTimerDebugSkip(connection);
             return;
@@ -268,6 +273,14 @@ public class PlayerInputListener implements Listener {
         if (lobby != null) {
             lobby.forceAdvanceToFinalMinuteForTesting();
         }
+    }
+
+    private void handleShopPurchaseRequest(Connection connection, Network.ShopPurchaseRequest request) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby == null || request == null) {
+            return;
+        }
+        lobby.purchaseShopItem(connection.getID(), request.itemType, request.amount, request.orbCost);
     }
 
     private Lobby getLobbyForConnection(Connection connection) {

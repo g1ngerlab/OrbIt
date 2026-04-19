@@ -51,6 +51,8 @@ public class GameClient {
         void onNpcHitSound(Network.NpcHitSound npcHitSound);
         /** Called when an extraction point state changes. */
         void onExtractionPointStateUpdate(Network.ExtractionPointStateUpdate stateUpdate);
+        /** Called when in-game shop purchase request is completed on server. */
+        void onShopPurchaseResult(Network.ShopPurchaseResult result);
     }
 
     public GameClient(int lobbyId, String playerName) {
@@ -218,6 +220,12 @@ public class GameClient {
                         gameListener.onExtractionPointStateUpdate(update);
                     }
                 }
+                if (object instanceof Network.ShopPurchaseResult) {
+                    Network.ShopPurchaseResult result = (Network.ShopPurchaseResult) object;
+                    if (gameListener != null) {
+                        gameListener.onShopPurchaseResult(result);
+                    }
+                }
             }
 
             @Override
@@ -303,6 +311,12 @@ public class GameClient {
     public void sendToServer(Object packet) {
         if (client != null && client.isConnected()) {
             client.sendTCP(packet);
+        }
+    }
+
+    public void sendShopPurchase(int itemTypeId, int amount, int orbCost) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.ShopPurchaseRequest(itemTypeId, amount, orbCost));
         }
     }
 

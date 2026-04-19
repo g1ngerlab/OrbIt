@@ -6,7 +6,8 @@ package taltech.orbitgame.item;
 public enum ItemKind {
     NONE(0, "none"),
     ORB(1, "orb"),
-    STARTER_SHOTGUN(2, "starter_shotgun");
+    STARTER_SHOTGUN(2, "starter_shotgun"),
+    GOLDEN_FROG(3, "golden_frog");
 
     private final int id;
     private final String code;

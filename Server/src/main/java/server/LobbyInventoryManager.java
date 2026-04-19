@@ -207,6 +207,39 @@ public class LobbyInventoryManager {
         sendInventoryUpdate(clientId);
     }
 
+    public boolean purchaseItemWithOrbCost(int clientId, int itemTypeId, int amount, int orbCost) {
+        if (itemTypeId == ItemKind.NONE.getId() || amount <= 0 || orbCost <= 0) {
+            return false;
+        }
+
+        ItemStack[] inventory = playerInventories.get(clientId);
+        if (inventory == null) {
+            return false;
+        }
+
+        int totalOrbs = countItemAmount(inventory, ItemKind.ORB.getId());
+        if (totalOrbs < orbCost) {
+            return false;
+        }
+
+        int insertCapacity = calculateInsertCapacity(inventory, itemTypeId);
+        if (insertCapacity < amount) {
+            return false;
+        }
+
+        if (!removeItemAmount(inventory, ItemKind.ORB.getId(), orbCost)) {
+            return false;
+        }
+
+        boolean added = addItemToInventory(clientId, itemTypeId, amount);
+        if (!added) {
+            addItemToInventory(clientId, ItemKind.ORB.getId(), orbCost);
+            return false;
+        }
+
+        return true;
+    }
+
     public void dropAllInventoryItems(LobbyPlayer player) {
         ItemStack[] inventory = playerInventories.get(player.getClientId());
         if (inventory == null) {
@@ -349,6 +382,55 @@ public class LobbyInventoryManager {
             }
         }
         return remaining;
+    }
+
+    private int countItemAmount(ItemStack[] inventory, int itemTypeId) {
+        int total = 0;
+        for (ItemStack slot : inventory) {
+            if (slot == null || slot.isEmpty() || slot.getItemTypeId() != itemTypeId) {
+                continue;
+            }
+            total += Math.max(0, slot.getAmount());
+        }
+        return total;
+    }
+
+    private boolean removeItemAmount(ItemStack[] inventory, int itemTypeId, int amount) {
+        int remaining = amount;
+        for (int i = 0; i < inventory.length && remaining > 0; i++) {
+            ItemStack slot = inventory[i];
+            if (slot == null || slot.isEmpty() || slot.getItemTypeId() != itemTypeId) {
+                continue;
+            }
+            int take = Math.min(remaining, slot.getAmount());
+            slot.remove(take);
+            remaining -= take;
+            if (slot.isEmpty()) {
+                inventory[i] = null;
+            }
+        }
+        return remaining <= 0;
+    }
+
+    private int calculateInsertCapacity(ItemStack[] inventory, int itemTypeId) {
+        int maxStack = Math.max(1, ItemRegistry.getMaxStack(itemTypeId));
+        int capacity = 0;
+
+        for (int i = 0; i < inventory.length; i++) {
+            if (!canPlaceInSlot(itemTypeId, i)) {
+                continue;
+            }
+            ItemStack slot = inventory[i];
+            if (slot == null || slot.isEmpty()) {
+                capacity += maxStack;
+                continue;
+            }
+            if (slot.getItemTypeId() == itemTypeId && slot.getAmount() < maxStack) {
+                capacity += maxStack - slot.getAmount();
+            }
+        }
+
+        return capacity;
     }
 }
 
