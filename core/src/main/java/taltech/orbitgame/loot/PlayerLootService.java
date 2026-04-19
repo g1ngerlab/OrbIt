@@ -214,6 +214,55 @@ public class PlayerLootService {
         });
     }
 
+    public void syncShopPurchase(String currencyItemCode,
+                                 int currencySpent,
+                                 String purchasedItemCode,
+                                 int purchasedAmount,
+                                 SaveCallback callback) {
+        if (!isConfigured()) {
+            callback.onError("Supabase is not configured");
+            return;
+        }
+        if (currencyItemCode == null || currencyItemCode.trim().isEmpty()
+            || purchasedItemCode == null || purchasedItemCode.trim().isEmpty()) {
+            callback.onError("Invalid item code");
+            return;
+        }
+        if (currencySpent <= 0 || purchasedAmount <= 0) {
+            callback.onError("Invalid purchase values");
+            return;
+        }
+
+        AuthSession session = AuthState.getCurrentSession();
+        if (session == null || session.getAccessToken().isEmpty() || session.getUserId().isEmpty()) {
+            callback.onError("User session is missing");
+            return;
+        }
+
+        String normalizedCurrency = currencyItemCode.trim();
+        String normalizedPurchased = purchasedItemCode.trim();
+        loadCurrentTotals(session, new TotalsCallback() {
+            @Override
+            public void onSuccess(Map<String, Integer> currentTotals) {
+                Map<String, Integer> merged = new LinkedHashMap<>(currentTotals);
+
+                int currentCurrency = Math.max(0, merged.getOrDefault(normalizedCurrency, 0));
+                int newCurrency = Math.max(0, currentCurrency - currencySpent);
+                merged.put(normalizedCurrency, newCurrency);
+
+                int currentPurchased = Math.max(0, merged.getOrDefault(normalizedPurchased, 0));
+                merged.put(normalizedPurchased, currentPurchased + purchasedAmount);
+
+                upsertTotals(session, merged, callback);
+            }
+
+            @Override
+            public void onError(String message) {
+                callback.onError(message);
+            }
+        });
+    }
+
     private void updateLootQuantity(AuthSession session, String itemCode, int quantity, SaveCallback callback) {
         String path = "/rest/v1/player_loot?on_conflict=user_id,item_code";
         Map<String, Integer> single = new LinkedHashMap<>();

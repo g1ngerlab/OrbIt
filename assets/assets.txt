@@ -37,6 +37,7 @@ guns/banaan_bullet2.png
 guns/crosshair.png
 guns/test_bullet.png
 guns/test_shotgun.png
+loot/golden_frog.png
 loot/orb_v1.png
 maps/TalTechMAP.ldtk
 npc/fightbutler.png

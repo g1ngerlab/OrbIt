@@ -197,6 +197,15 @@ public class MainMenuScreen implements Screen {
         });
         rightTable.add(inventoryButton).padBottom(16).size(inventoryButton.getWidth(), inventoryButton.getHeight()).row();
 
+        TextButton shopButton = createButton("SHOP");
+        shopButton.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.setScreen(new ShopMenuScreen(game, lobbyInfoClient));
+            }
+        });
+        rightTable.add(shopButton).padBottom(16).size(shopButton.getWidth(), shopButton.getHeight()).row();
+
         // Create Settings button
         TextButton settingsButton = createButton("SETTINGS");
         settingsButton.addListener(new ClickListener() {
@@ -229,8 +238,8 @@ public class MainMenuScreen implements Screen {
         TextButton button = new TextButton(text, buttonStyle);
 
         // Keep all buttons compact so extra actions (inventory) fit without clutter.
-        float buttonWidth = buttonTexture.getWidth() * 0.55f;
-        float buttonHeight = buttonTexture.getHeight() * 0.55f;
+        float buttonWidth = buttonTexture.getWidth() * 0.5f;
+        float buttonHeight = buttonTexture.getHeight() * 0.5f;
         button.setSize(buttonWidth, buttonHeight);
 
         // Center text in the button by ensuring the label cell fills the button area

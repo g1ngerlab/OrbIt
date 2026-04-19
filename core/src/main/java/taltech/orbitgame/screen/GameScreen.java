@@ -13,6 +13,7 @@ import taltech.orbitgame.extraction.ExtractionManager;
 import taltech.orbitgame.extraction.ExtractionPointRenderer;
 import taltech.orbitgame.extraction.ui.ExtractionUiHud;
 import taltech.orbitgame.inventory.InventoryFeature;
+import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.loot.PlayerLootService;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
@@ -60,6 +61,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private boolean leavingGame = false;
     private boolean disposed = false;
     private final InventoryFeature inventoryFeature;
+    private final PlayerLootService playerLootService;
     private CompletableFuture<MapManager.LoadedMapData> mapLoadFuture;
     private Throwable mapLoadError;
     private final long mapLoadStartedAtMs;
@@ -76,6 +78,11 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     // Death/Extraction state
     private String killedByName = null;
     private boolean playerDead = false;
+    private String shopStatusMessage;
+    private boolean shopPurchaseInProgress;
+    private int pendingShopItemType = ItemKind.NONE.getId();
+    private int pendingShopAmount;
+    private int pendingShopOrbCost;
 
     public GameScreen(Main game, GameClient gameClient) {
         this(game, gameClient, null);
@@ -99,7 +106,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         this.npcManager = new NpcManager();
         this.gameRenderer = new GameRenderer(player.getCharacterType());
         this.inventoryFeature = new InventoryFeature();
-        PlayerLootService playerLootService = new PlayerLootService();
+        this.playerLootService = new PlayerLootService();
 
         this.extractionManager = new ExtractionManager();
         this.sessionExitCoordinator = new GameSessionExitCoordinator(game, lobbyInfoClient, playerLootService);
@@ -397,6 +404,52 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         });
     }
 
+    @Override public void onShopPurchaseResult(Network.ShopPurchaseResult result) {
+        Gdx.app.postRunnable(() -> {
+            shopPurchaseInProgress = false;
+            if (result == null) {
+                shopStatusMessage = "Purchase failed";
+                return;
+            }
+
+            shopStatusMessage = result.message == null || result.message.trim().isEmpty()
+                ? (result.success ? "Purchase successful" : "Purchase failed")
+                : result.message;
+
+            if (!result.success) {
+                return;
+            }
+
+            int itemTypeId = result.itemType == ItemKind.NONE.getId() ? pendingShopItemType : result.itemType;
+            int itemAmount = result.amount > 0 ? result.amount : Math.max(1, pendingShopAmount);
+            int orbCost = result.orbCost > 0 ? result.orbCost : Math.max(1, pendingShopOrbCost);
+            ItemKind purchasedKind = ItemKind.fromId(itemTypeId);
+            if (purchasedKind == ItemKind.NONE) {
+                return;
+            }
+
+            playerLootService.syncShopPurchase(
+                ItemKind.ORB.getCode(),
+                orbCost,
+                purchasedKind.getCode(),
+                itemAmount,
+                new PlayerLootService.SaveCallback() {
+                    @Override
+                    public void onSuccess() {
+                        // Keep server message as the main UI status.
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        if (message != null && !message.trim().isEmpty()) {
+                            shopStatusMessage = "Purchased in match. Supabase sync: " + message;
+                        }
+                    }
+                }
+            );
+        });
+    }
+
     public void setPaused(boolean paused) {
         this.isPaused = paused;
     }
@@ -407,6 +460,44 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     public void skipLobbyTimerToFinalMinuteForTesting() {
         gameClient.sendToServer(new Network.LobbyTimerDebugSkip());
+    }
+
+    public int getCurrentOrbBalance() {
+        return inventoryFeature.getState().getTotalItemsByType(ItemKind.ORB.getId());
+    }
+
+    public boolean isShopPurchaseInProgress() {
+        return shopPurchaseInProgress;
+    }
+
+    public String pollShopStatusMessage() {
+        String current = shopStatusMessage;
+        shopStatusMessage = null;
+        return current;
+    }
+
+    public boolean requestShopPurchase(int itemTypeId, int amount, int orbCost) {
+        if (shopPurchaseInProgress || amount <= 0 || orbCost <= 0) {
+            return false;
+        }
+
+        if (getCurrentOrbBalance() < orbCost) {
+            shopStatusMessage = "Not enough ORB";
+            return false;
+        }
+
+        if (!gameClient.isConnected()) {
+            shopStatusMessage = "Server connection lost";
+            return false;
+        }
+
+        shopPurchaseInProgress = true;
+        pendingShopItemType = itemTypeId;
+        pendingShopAmount = amount;
+        pendingShopOrbCost = orbCost;
+        shopStatusMessage = "Processing purchase...";
+        gameClient.sendShopPurchase(itemTypeId, amount, orbCost);
+        return true;
     }
 
     private void leaveToMainMenuLikeEscLeave() {

@@ -239,6 +239,17 @@ public class Lobby {
         inventoryManager.moveInventoryItem(clientId, fromSlotIndex, toSlotIndex);
     }
 
+    public void purchaseShopItem(int clientId, int itemTypeId, int amount, int orbCost) {
+        LobbyPlayer player = players.get(clientId);
+        if (player == null) {
+            return;
+        }
+
+        boolean success = inventoryManager.purchaseItemWithOrbCost(clientId, itemTypeId, amount, orbCost);
+        String message = success ? "Purchase successful" : "Not enough ORB or inventory space";
+        player.getConnection().sendTCP(new Network.ShopPurchaseResult(success, message, itemTypeId, amount, orbCost));
+    }
+
     public void updateNpcs(float deltaTime) {
         if (lobbyClosed) {
             return;
