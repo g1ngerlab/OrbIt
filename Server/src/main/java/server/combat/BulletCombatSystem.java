@@ -18,7 +18,7 @@ import java.util.Queue;
 public class BulletCombatSystem {
     public interface Callbacks {
         void onPlayerDamaged(LobbyPlayer player);
-        void onPlayerKilled(LobbyPlayer player);
+        void onPlayerKilled(LobbyPlayer player, int killerClientId);
         void onNpcKilled(Npc npc);
     }
 
@@ -67,7 +67,16 @@ public class BulletCombatSystem {
 
             Vector2 velocity = new Vector2(direction).scl(bulletSpeed);
             int bulletId = nextBulletId++;
-            bullets.put(bulletId, new ServerBullet(bulletId, shot.getOwnerClientId(), spawnPoint, velocity, bulletLifetime));
+            int bulletType;
+            if (owner.getCharacterId() == 2) {
+                bulletType = 2;
+            } else if (owner.getCharacterId() == 3) {
+                bulletType = 3;
+            } else {
+                bulletType = 1;
+            }
+            bullets.put(bulletId, new ServerBullet(bulletId, shot.getOwnerClientId(), bulletType,
+                spawnPoint, velocity, bulletLifetime));
         }
 
         return nextBulletId;
@@ -109,6 +118,7 @@ public class BulletCombatSystem {
             state.y = bullet.getPosition().y;
             state.radius = bulletRadius;
             state.angleDeg = bullet.getVelocity().angleDeg();
+            state.bulletType = bullet.getBulletType();
             update.bullets.add(state);
         }
 
@@ -142,7 +152,7 @@ public class BulletCombatSystem {
                 player.takeDamage(bulletDamage);
                 callbacks.onPlayerDamaged(player);
                 if (player.isDead()) {
-                    callbacks.onPlayerKilled(player);
+                    callbacks.onPlayerKilled(player, bullet.getOwnerClientId());
                 }
                 return true;
             }

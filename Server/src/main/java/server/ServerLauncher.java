@@ -2,21 +2,21 @@ package server;
 
 import server.listener.PlayerInputListener;
 import server.world.MapCollisionGridCache;
+import taltech.orbitgame.network.NetworkConfig;
 
 /**
  * Main server launcher that starts the Kryonet server
  */
 public class ServerLauncher {
-    private static final int SERVER_PORT = 54555;
-
     public static void main(String[] args) {
-        System.out.println("[Server] Starting server on port " + SERVER_PORT);
+        int serverPort = NetworkConfig.getServerPort();
+        System.out.println("[Server] Starting server on port " + serverPort);
 
         // Preload map collision grid to avoid blocking lobby creation.
         MapCollisionGridCache.get();
 
         // Initialize and start the server
         PlayerInputListener listener = new PlayerInputListener();
-        listener.startServer(SERVER_PORT);
+        listener.startServer(serverPort);
     }
 }

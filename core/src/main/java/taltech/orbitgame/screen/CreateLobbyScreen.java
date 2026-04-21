@@ -20,11 +20,10 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.auth.AuthState;
-import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
-import taltech.orbitgame.network.Network;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.audio.AudioManager;
 
 /**
  * Screen for creating a new lobby with a custom name
@@ -54,6 +53,9 @@ public class CreateLobbyScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
         Pixmap dimPixmap = new Pixmap(1, 1, Pixmap.Format.RGBA8888);
@@ -138,10 +140,12 @@ public class CreateLobbyScreen implements Screen {
                 public void onLobbyCreated(int lobbyId, String lobbyName) {
                     Gdx.app.postRunnable(() -> {
                         System.out.println("[CreateLobbyScreen] Lobby created: " + lobbyId + " - " + lobbyName);
-                        // Join the newly created lobby
-                        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
-                        game.setScreen(new GameScreen((Main) game, gameClient));
-                        gameClient.connect();
+                        game.setScreen(new ChooseLoadoutScreen(
+                            game,
+                            lobbyInfoClient,
+                            lobbyId,
+                            new CreateLobbyScreen(game, lobbyInfoClient)
+                        ));
                     });
                 }
 

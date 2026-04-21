@@ -8,34 +8,32 @@ import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.Texture;
+import taltech.orbitgame.player.CharacterType;
 import taltech.orbitgame.util.FontManager;
 
 /**
  * Represents a remote player (other players in the lobby)
  */
 public class RemotePlayer {
-    private static final int RUN_SIDE_FRAMES = 7;
-    private static final int RUN_UP_FRAMES = 6;
-    private static final int RUN_DOWN_FRAMES = 8;
-    private static final int IDLE_FRAMES = 10;
-
-    private static final float RUN_FRAME_TIME = 0.07f;
-    private static final float IDLE_FRAME_TIME = 0.09f;
-    private static final float DRAW_SCALE = 1f / 1.5f;
     private static final float NAME_Y_OFFSET = 40f;
 
+    private final CharacterType characterType;
     private final Texture runSideTexture;
     private final Texture runUpTexture;
     private final Texture runDownTexture;
     private final Texture idleTexture;
+    private final Texture attackTexture;
 
     private final Animation<TextureRegion> runSideAnimation;
     private final Animation<TextureRegion> runUpAnimation;
     private final Animation<TextureRegion> runDownAnimation;
     private final Animation<TextureRegion> idleAnimation;
+    private final Animation<TextureRegion> attackAnimation;
 
     private float runTime = 0f;
     private float idleTime = 0f;
+    private float attackTime = 0f;
+    private boolean attacking = false;
 
     private Direction direction = Direction.DOWN;
     private boolean moving = false;
@@ -53,6 +51,8 @@ public class RemotePlayer {
     private int downFrameHeight;
     private int idleFrameWidth;
     private int idleFrameHeight;
+    private int attackFrameWidth;
+    private int attackFrameHeight;
 
     private int colliderWidth;
     private int colliderHeight;
@@ -71,34 +71,56 @@ public class RemotePlayer {
     private float currentHealth;
 
     public RemotePlayer(int clientId, String playerName, float x, float y) {
+        this(clientId, playerName, x, y, CharacterType.MATH);
+    }
+
+    public RemotePlayer(int clientId, String playerName, float x, float y, CharacterType characterType) {
         this.clientId = clientId;
         this.playerName = playerName;
         this.x = x;
         this.y = y;
         this.lastX = x;
         this.lastY = y;
+        this.characterType = characterType == null ? CharacterType.MATH : characterType;
 
-        runSideTexture = new Texture(Gdx.files.internal("player/run_side.png"));
-        runUpTexture = new Texture(Gdx.files.internal("player/run_up.png"));
-        runDownTexture = new Texture(Gdx.files.internal("player/run_down.png"));
-        idleTexture = new Texture(Gdx.files.internal("player/without_run.png"));
+        runSideTexture = new Texture(Gdx.files.internal(this.characterType.getRunSideTexturePath()));
+        runUpTexture = new Texture(Gdx.files.internal(this.characterType.getRunUpTexturePath()));
+        runDownTexture = new Texture(Gdx.files.internal(this.characterType.getRunDownTexturePath()));
+        idleTexture = new Texture(Gdx.files.internal(this.characterType.getIdleTexturePath()));
+        attackTexture = this.characterType.hasAttackAnimation()
+            ? new Texture(Gdx.files.internal(this.characterType.getAttackTexturePath()))
+            : null;
 
-        sideFrameWidth = runSideTexture.getWidth() / RUN_SIDE_FRAMES;
+        sideFrameWidth = runSideTexture.getWidth() / this.characterType.getRunSideFrames();
         sideFrameHeight = runSideTexture.getHeight();
-        upFrameWidth = runUpTexture.getWidth() / RUN_UP_FRAMES;
+        upFrameWidth = runUpTexture.getWidth() / this.characterType.getRunUpFrames();
         upFrameHeight = runUpTexture.getHeight();
-        downFrameWidth = runDownTexture.getWidth() / RUN_DOWN_FRAMES;
+        downFrameWidth = runDownTexture.getWidth() / this.characterType.getRunDownFrames();
         downFrameHeight = runDownTexture.getHeight();
-        idleFrameWidth = idleTexture.getWidth() / IDLE_FRAMES;
+        idleFrameWidth = idleTexture.getWidth() / this.characterType.getIdleFrames();
         idleFrameHeight = idleTexture.getHeight();
+        if (attackTexture != null) {
+            attackFrameWidth = attackTexture.getWidth() / this.characterType.getAttackFrames();
+            attackFrameHeight = attackTexture.getHeight();
+        }
 
         colliderWidth = 32;
         colliderHeight = 48;
 
-        runSideAnimation = createAnimation(runSideTexture, sideFrameWidth, sideFrameHeight, RUN_SIDE_FRAMES, RUN_FRAME_TIME);
-        runUpAnimation = createAnimation(runUpTexture, upFrameWidth, upFrameHeight, RUN_UP_FRAMES, RUN_FRAME_TIME);
-        runDownAnimation = createAnimation(runDownTexture, downFrameWidth, downFrameHeight, RUN_DOWN_FRAMES, RUN_FRAME_TIME);
-        idleAnimation = createAnimation(idleTexture, idleFrameWidth, idleFrameHeight, IDLE_FRAMES, IDLE_FRAME_TIME);
+        runSideAnimation = createAnimation(runSideTexture, sideFrameWidth, sideFrameHeight,
+            this.characterType.getRunSideFrames(), this.characterType.getRunFrameTime());
+        runUpAnimation = createAnimation(runUpTexture, upFrameWidth, upFrameHeight,
+            this.characterType.getRunUpFrames(), this.characterType.getRunFrameTime());
+        runDownAnimation = createAnimation(runDownTexture, downFrameWidth, downFrameHeight,
+            this.characterType.getRunDownFrames(), this.characterType.getRunFrameTime());
+        idleAnimation = createAnimation(idleTexture, idleFrameWidth, idleFrameHeight,
+            this.characterType.getIdleFrames(), this.characterType.getIdleFrameTime());
+        if (attackTexture != null) {
+            attackAnimation = createAnimation(attackTexture, attackFrameWidth, attackFrameHeight,
+                this.characterType.getAttackFrames(), this.characterType.getAttackFrameTime());
+        } else {
+            attackAnimation = null;
+        }
 
         font = FontManager.getPixelFont(12);
         font.setColor(Color.YELLOW);
@@ -113,6 +135,12 @@ public class RemotePlayer {
     }
 
     public void update(float delta) {
+        if (attacking) {
+            attackTime += delta;
+            if (attackAnimation != null && attackTime >= attackAnimation.getAnimationDuration()) {
+                attacking = false;
+            }
+        }
         if (moving) {
             runTime += delta;
         } else {
@@ -138,15 +166,16 @@ public class RemotePlayer {
 
     public void render(SpriteBatch batch) {
         Animation<TextureRegion> animation = resolveAnimation();
-        TextureRegion currentFrame = animation.getKeyFrame(moving ? runTime : idleTime, true);
-        int drawWidth = Math.round(resolveFrameWidth(animation) * DRAW_SCALE);
-        int drawHeight = Math.round(resolveFrameHeight(animation) * DRAW_SCALE);
+        float time = resolveAnimationTime(animation);
+        TextureRegion currentFrame = animation.getKeyFrame(time, true);
+        int drawWidth = Math.round(resolveFrameWidth(animation) * characterType.getDrawScale());
+        int drawHeight = Math.round(resolveFrameHeight(animation) * characterType.getDrawScale());
 
         Color prev = batch.getColor();
         batch.setColor(1f, 1f, 1f, 1f);
         float drawX = x + (colliderWidth - drawWidth) * 0.5f;
         float drawY = y;
-        if (direction == Direction.RIGHT && animation == runSideAnimation) {
+        if (shouldFlipForDirection(animation)) {
             batch.draw(currentFrame, drawX + drawWidth, drawY, -drawWidth, drawHeight);
         } else {
             batch.draw(currentFrame, drawX, drawY, drawWidth, drawHeight);
@@ -165,6 +194,9 @@ public class RemotePlayer {
         runUpTexture.dispose();
         runDownTexture.dispose();
         idleTexture.dispose();
+        if (attackTexture != null) {
+            attackTexture.dispose();
+        }
         font.dispose();
     }
 
@@ -255,7 +287,22 @@ public class RemotePlayer {
         return currentHealth > 0f;
     }
 
+    public CharacterType getCharacterType() {
+        return characterType;
+    }
+
+    public void triggerAttack() {
+        if (attackAnimation == null) {
+            return;
+        }
+        attacking = true;
+        attackTime = 0f;
+    }
+
     private Animation<TextureRegion> resolveAnimation() {
+        if (attacking && attackAnimation != null) {
+            return attackAnimation;
+        }
         if (moving) {
             switch (direction) {
                 case UP:
@@ -272,6 +319,9 @@ public class RemotePlayer {
     }
 
     private int resolveFrameWidth(Animation<TextureRegion> animation) {
+        if (animation == attackAnimation) {
+            return attackFrameWidth;
+        }
         if (animation == runUpAnimation) {
             return upFrameWidth;
         }
@@ -285,6 +335,9 @@ public class RemotePlayer {
     }
 
     private int resolveFrameHeight(Animation<TextureRegion> animation) {
+        if (animation == attackAnimation) {
+            return attackFrameHeight;
+        }
         if (animation == runUpAnimation) {
             return upFrameHeight;
         }
@@ -295,6 +348,31 @@ public class RemotePlayer {
             return idleFrameHeight;
         }
         return sideFrameHeight;
+    }
+
+    private float resolveAnimationTime(Animation<TextureRegion> animation) {
+        if (animation == attackAnimation) {
+            return attackTime;
+        }
+        return moving ? runTime : idleTime;
+    }
+
+    private boolean shouldFlipForDirection(Animation<TextureRegion> animation) {
+        if (animation != runSideAnimation && animation != attackAnimation) {
+            return false;
+        }
+        if (animation == attackAnimation) {
+            boolean aimRight = aimX >= getCenterX();
+            boolean flip = aimRight ? characterType.isBaseFacingLeft() : !characterType.isBaseFacingLeft();
+            return characterType.isAttackFlipInverted() ? !flip : flip;
+        }
+        if (direction == Direction.RIGHT) {
+            return characterType.isBaseFacingLeft();
+        }
+        if (direction == Direction.LEFT) {
+            return !characterType.isBaseFacingLeft();
+        }
+        return false;
     }
 
     private void updateDirectionFromDelta(float dx, float dy) {

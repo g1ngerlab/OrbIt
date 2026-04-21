@@ -17,6 +17,9 @@ if ($NoDaemon) { $arguments += "--no-daemon" }
 if ($PlainConsole) { $arguments += "--console"; $arguments += "plain" }
 $arguments += "Server:run"
 
+Write-Host "Starting server..."
+Write-Host "Configure server connection in: core/src/main/java/taltech/orbitgame/network/NetworkConfig.java"
+
 Push-Location $repoRoot
 try {
     & java @arguments

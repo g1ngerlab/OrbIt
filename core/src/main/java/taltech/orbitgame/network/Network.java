@@ -2,16 +2,22 @@ package taltech.orbitgame.network;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.EndPoint;
+import taltech.orbitgame.item.ItemKind;
 
 // This class will be shared by both the client and server.
 public class Network {
-    //public static final int PORT = 54555;
-    public static final int PORT = 8080;
+    // Note: Use NetworkConfig.getServerHost() and NetworkConfig.getServerPort() for runtime configuration
+    // To switch between servers, edit NetworkConfig.java and comment/uncomment the configuration lines
+    public static final int PORT = 54555;  // Local server
+    //public static final int PORT = 8080;  // Remote TalTech server
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
         kryo.register(Login.class);
         kryo.register(Registration.class);
+        kryo.register(LoginError.class);
+        kryo.register(CheckPlayerAvailability.class);
+        kryo.register(PlayerAvailabilityResponse.class);
         kryo.register(MoveRequest.class);
         kryo.register(InputState.class);
         kryo.register(KeyPressEvent.class);
@@ -23,6 +29,9 @@ public class Network {
         kryo.register(java.util.ArrayList.class);
         kryo.register(PlayerInfo.class);
         kryo.register(LobbyJoinConfirmed.class);
+        kryo.register(LobbyTimerState.class);
+        kryo.register(LobbyClosed.class);
+        kryo.register(LobbyTimerDebugSkip.class);
         kryo.register(RequestLobbyInfo.class);
         kryo.register(LobbyInfo.class);
         kryo.register(java.util.HashMap.class);
@@ -30,13 +39,22 @@ public class Network {
         kryo.register(NpcStateUpdate.class);
         kryo.register(NpcAttack.class);
         kryo.register(ShootRequest.class);
+        kryo.register(PlayerShoot.class);
+        kryo.register(PlayerStep.class);
+        kryo.register(NpcDeathSound.class);
+        kryo.register(NpcHitSound.class);
         kryo.register(BulletState.class);
         kryo.register(BulletStateUpdate.class);
         kryo.register(CorpseState.class);
         kryo.register(CorpseStateUpdate.class);
         kryo.register(OrbState.class);
         kryo.register(OrbStateUpdate.class);
-        kryo.register(SessionOrbCountUpdate.class);
+        kryo.register(InventorySlotState.class);
+        kryo.register(InventoryStateUpdate.class);
+        kryo.register(DropItemRequest.class);
+        kryo.register(MoveInventoryItemRequest.class);
+        kryo.register(ShopPurchaseRequest.class);
+        kryo.register(ShopPurchaseResult.class);
         kryo.register(PlayerHealthUpdate.class);
         kryo.register(EntityDied.class);
         kryo.register(CreateLobby.class);
@@ -45,6 +63,10 @@ public class Network {
         kryo.register(RequestAllLobbies.class);
         kryo.register(AllLobbiesInfo.class);
         kryo.register(LobbyListItem.class);
+        kryo.register(ExtractionPointActivation.class);
+        kryo.register(ExtractionPointStateUpdate.class);
+        kryo.register(ExtractionPointsData.class);
+        kryo.register(ExtractionPointData.class);
     }
 
     public static class Login {
@@ -54,6 +76,40 @@ public class Network {
     public static class Registration {
         public int id;
         public String name;
+    }
+
+    public static class LoginError {
+        public String reason;
+
+        public LoginError() {}
+
+        public LoginError(String reason) {
+            this.reason = reason;
+        }
+    }
+
+    public static class CheckPlayerAvailability {
+        public String playerName;
+
+        public CheckPlayerAvailability() {}
+
+        public CheckPlayerAvailability(String playerName) {
+            this.playerName = playerName;
+        }
+    }
+
+    public static class PlayerAvailabilityResponse {
+        public String playerName;
+        public boolean available;
+        public String reason;
+
+        public PlayerAvailabilityResponse() {}
+
+        public PlayerAvailabilityResponse(String playerName, boolean available, String reason) {
+            this.playerName = playerName;
+            this.available = available;
+            this.reason = reason;
+        }
     }
 
     public static class MoveRequest {
@@ -105,11 +161,21 @@ public class Network {
      */
     public static class JoinLobby {
         public int lobbyId;
+        public int characterId;
+        public java.util.List<InventorySlotState> loadoutSlots;
 
-        public JoinLobby() {}
+        public JoinLobby() {
+            loadoutSlots = new java.util.ArrayList<>();
+        }
 
-        public JoinLobby(int lobbyId) {
+        public JoinLobby(int lobbyId, int characterId) {
+            this(lobbyId, characterId, new java.util.ArrayList<>());
+        }
+
+        public JoinLobby(int lobbyId, int characterId, java.util.List<InventorySlotState> loadoutSlots) {
             this.lobbyId = lobbyId;
+            this.characterId = characterId;
+            this.loadoutSlots = loadoutSlots == null ? new java.util.ArrayList<>() : new java.util.ArrayList<>(loadoutSlots);
         }
     }
 
@@ -144,14 +210,16 @@ public class Network {
         public String playerName;
         public float x;
         public float y;
+        public int characterId;
 
         public PlayerJoined() {}
 
-        public PlayerJoined(int clientId, String playerName, float x, float y) {
+        public PlayerJoined(int clientId, String playerName, float x, float y, int characterId) {
             this.clientId = clientId;
             this.playerName = playerName;
             this.x = x;
             this.y = y;
+            this.characterId = characterId;
         }
     }
 
@@ -178,16 +246,18 @@ public class Network {
         public float y;
         public float aimX;
         public float aimY;
+        public int characterId;
 
         public PlayerInfo() {}
 
-        public PlayerInfo(int clientId, String playerName, float x, float y, float aimX, float aimY) {
+        public PlayerInfo(int clientId, String playerName, float x, float y, float aimX, float aimY, int characterId) {
             this.clientId = clientId;
             this.playerName = playerName;
             this.x = x;
             this.y = y;
             this.aimX = aimX;
             this.aimY = aimY;
+            this.characterId = characterId;
         }
     }
 
@@ -217,6 +287,44 @@ public class Network {
             this.spawnX = spawnX;
             this.spawnY = spawnY;
         }
+    }
+
+    /**
+     * Sent by the server to keep clients informed about lobby lifetime.
+     */
+    public static class LobbyTimerState {
+        public int lobbyId;
+        public int remainingMs;
+        public boolean freezePhase;
+
+        public LobbyTimerState() {}
+
+        public LobbyTimerState(int lobbyId, int remainingMs, boolean freezePhase) {
+            this.lobbyId = lobbyId;
+            this.remainingMs = remainingMs;
+            this.freezePhase = freezePhase;
+        }
+    }
+
+    /**
+     * Sent by the server when a lobby is closing.
+     */
+    public static class LobbyClosed {
+        public int lobbyId;
+        public String reason;
+
+        public LobbyClosed() {}
+
+        public LobbyClosed(int lobbyId, String reason) {
+            this.lobbyId = lobbyId;
+            this.reason = reason;
+        }
+    }
+
+    /**
+     * Debug-only request to jump lobby timer to the final minute.
+     */
+    public static class LobbyTimerDebugSkip {
     }
 
     /**
@@ -291,12 +399,89 @@ public class Network {
         }
     }
 
+    /**
+     * Sent by the server to all clients when a player shoots.
+     * Used to play sound effects on the client side.
+     */
+    public static class PlayerShoot {
+        public int clientId;
+        public String playerName;
+        public float shooterX;
+        public float shooterY;
+
+        public PlayerShoot() {}
+
+        public PlayerShoot(int clientId, String playerName, float shooterX, float shooterY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.shooterX = shooterX;
+            this.shooterY = shooterY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when a player takes a step.
+     * Used to play footstep sound effects on the client side.
+     */
+    public static class PlayerStep {
+        public int clientId;
+        public String playerName;
+        public float playerX;
+        public float playerY;
+
+        public PlayerStep() {}
+
+        public PlayerStep(int clientId, String playerName, float playerX, float playerY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.playerX = playerX;
+            this.playerY = playerY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when an NPC dies.
+     * Used to play death sound effects on the client side.
+     */
+    public static class NpcDeathSound {
+        public int npcId;
+        public float npcX;
+        public float npcY;
+
+        public NpcDeathSound() {}
+
+        public NpcDeathSound(int npcId, float npcX, float npcY) {
+            this.npcId = npcId;
+            this.npcX = npcX;
+            this.npcY = npcY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when an NPC hits a player.
+     * Used to play impact sound effects on the client side.
+     */
+    public static class NpcHitSound {
+        public int npcId;
+        public float npcX;
+        public float npcY;
+
+        public NpcHitSound() {}
+
+        public NpcHitSound(int npcId, float npcX, float npcY) {
+            this.npcId = npcId;
+            this.npcX = npcX;
+            this.npcY = npcY;
+        }
+    }
+
     public static class BulletState {
         public int bulletId;
         public float x;
         public float y;
         public float angleDeg;
         public float radius;
+        public int bulletType;
 
         public BulletState() {}
     }
@@ -339,6 +524,7 @@ public class Network {
 
     public static class OrbState {
         public int orbId;
+        public int itemType;
         /** Center position in world coordinates. */
         public float x;
         public float y;
@@ -358,18 +544,108 @@ public class Network {
         }
     }
 
+    public static class InventorySlotState {
+        public int itemType;
+        public int amount;
+
+        public InventorySlotState() {}
+
+        public InventorySlotState(int itemType, int amount) {
+            this.itemType = itemType;
+            this.amount = amount;
+        }
+    }
+
     /**
-     * Sent by server when player's session orb count changes.
+     * Sent by server to the owner player when inventory state changes.
      */
-    public static class SessionOrbCountUpdate {
+    public static class InventoryStateUpdate {
         public int clientId;
-        public int orbCount;
+        public java.util.ArrayList<InventorySlotState> slots;
 
-        public SessionOrbCountUpdate() {}
+        public InventoryStateUpdate() {
+            slots = new java.util.ArrayList<>();
+        }
 
-        public SessionOrbCountUpdate(int clientId, int orbCount) {
+        public InventoryStateUpdate(int clientId) {
             this.clientId = clientId;
-            this.orbCount = orbCount;
+            this.slots = new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Sent by client to drop one item from the selected inventory slot.
+     */
+    public static class DropItemRequest {
+        public int slotIndex;
+
+        public DropItemRequest() {}
+
+        public DropItemRequest(int slotIndex) {
+            this.slotIndex = slotIndex;
+        }
+    }
+
+    /**
+     * Sent by client to move/merge/swap items between inventory slots.
+     */
+    public static class MoveInventoryItemRequest {
+        public int fromSlotIndex;
+        public int toSlotIndex;
+
+        public MoveInventoryItemRequest() {}
+
+        public MoveInventoryItemRequest(int fromSlotIndex, int toSlotIndex) {
+            this.fromSlotIndex = fromSlotIndex;
+            this.toSlotIndex = toSlotIndex;
+        }
+    }
+
+    /**
+     * Sent by client to buy an item from in-game shop with ORB currency.
+     */
+    public static class ShopPurchaseRequest {
+        public int itemType;
+        public int amount;
+        public int orbCost;
+
+        public ShopPurchaseRequest() {}
+
+        public ShopPurchaseRequest(int itemType, int amount, int orbCost) {
+            this.itemType = itemType;
+            this.amount = amount;
+            this.orbCost = orbCost;
+        }
+    }
+
+    /**
+     * Sent by server as a response for shop purchase request.
+     */
+    public static class ShopPurchaseResult {
+        public boolean success;
+        public String message;
+        public int itemType;
+        public int amount;
+        public int orbCost;
+
+        public ShopPurchaseResult() {}
+
+        public ShopPurchaseResult(boolean success, String message, int itemType, int amount, int orbCost) {
+            this.success = success;
+            this.message = message;
+            this.itemType = itemType;
+            this.amount = amount;
+            this.orbCost = orbCost;
+        }
+    }
+
+    public static final class ItemType {
+        public static final int NONE = ItemKind.NONE.getId();
+        public static final int ORB = ItemKind.ORB.getId();
+        public static final int STARTER_SHOTGUN = ItemKind.STARTER_SHOTGUN.getId();
+        public static final int GOLDEN_FROG = ItemKind.GOLDEN_FROG.getId();
+
+        private ItemType() {
         }
     }
 
@@ -404,12 +680,20 @@ public class Network {
         public int entityType;
         /** clientId for players, npcId for NPCs */
         public int entityId;
+        /** clientId of the player who killed this entity (-1 if killed by NPC/environment) */
+        public int killerId = -1;
 
         public EntityDied() {}
 
         public EntityDied(int entityType, int entityId) {
             this.entityType = entityType;
             this.entityId = entityId;
+        }
+
+        public EntityDied(int entityType, int entityId, int killerId) {
+            this.entityType = entityType;
+            this.entityId = entityId;
+            this.killerId = killerId;
         }
     }
 
@@ -488,4 +772,69 @@ public class Network {
             lobbies = new java.util.ArrayList<>();
         }
     }
+
+    /**
+     * Sent by client when attempting to activate an extraction point
+     */
+    public static class ExtractionPointActivation {
+        public int clientId;
+        public int extractionPointId;
+
+        public ExtractionPointActivation() {}
+
+        public ExtractionPointActivation(int clientId, int extractionPointId) {
+            this.clientId = clientId;
+            this.extractionPointId = extractionPointId;
+        }
+    }
+
+    /**
+     * Sent by server when an extraction point state changes
+     */
+    public static class ExtractionPointStateUpdate {
+        public int extractionPointId;
+        public int state; // 0 = available, 1 = activating, 2 = blocked
+        public int activatingClientId; // -1 if not activating
+        public float remainingTime; // for UI display
+
+        public ExtractionPointStateUpdate() {}
+
+        public ExtractionPointStateUpdate(int extractionPointId, int state, int activatingClientId, float remainingTime) {
+            this.extractionPointId = extractionPointId;
+            this.state = state;
+            this.activatingClientId = activatingClientId;
+            this.remainingTime = remainingTime;
+        }
+    }
+
+    /**
+     * Sent by server to provide all extraction points data at game start
+     */
+    public static class ExtractionPointsData {
+        public java.util.ArrayList<ExtractionPointData> points;
+
+        public ExtractionPointsData() {
+            points = new java.util.ArrayList<>();
+        }
+    }
+
+    /**
+     * Data about a single extraction point
+     */
+    public static class ExtractionPointData {
+        public int id;
+        public float x;
+        public float y;
+        public float radius;
+
+        public ExtractionPointData() {}
+
+        public ExtractionPointData(int id, float x, float y, float radius) {
+            this.id = id;
+            this.x = x;
+            this.y = y;
+            this.radius = radius;
+        }
+    }
 }
+

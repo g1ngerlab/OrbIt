@@ -17,13 +17,11 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import taltech.orbitgame.Main;
-import taltech.orbitgame.auth.AuthState;
-import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.LobbyInfoClient;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.rendering.BackgroundRenderer;
 import taltech.orbitgame.util.FontManager;
+import taltech.orbitgame.audio.AudioManager;
 
 import java.util.List;
 
@@ -53,6 +51,9 @@ public class JoinLobbyScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         batch = new SpriteBatch();
         Gdx.input.setInputProcessor(stage);
+
+        // Start lobby music
+        AudioManager.getInstance().playRandomLobbyMusic();
 
         background = new Texture(Gdx.files.internal("LobbyBg.png"));
 
@@ -89,15 +90,11 @@ public class JoinLobbyScreen implements Screen {
                 Gdx.app.postRunnable(() -> updateLobbyList(lobbies))
             );
 
-            // Will request lobbies in render() once connected
+            // Request immediately if connected, otherwise wait for connection in render()
             if (lobbyInfoClient.isConnected()) {
                 requestSent = true;
                 lobbyInfoClient.requestAllLobbies();
             }
-            // else: render() will keep polling until connected
-        } else {
-            statusLabel.setText("Not connected to server");
-            updateLobbyList(new java.util.ArrayList<>());
         }
     }
 
@@ -136,10 +133,12 @@ public class JoinLobbyScreen implements Screen {
 
         connecting = true;
         statusLabel.setText("Joining lobby...");
-
-        GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername());
-        game.setScreen(new GameScreen((Main) game, gameClient));
-        gameClient.connect();
+        game.setScreen(new ChooseLoadoutScreen(
+            game,
+            lobbyInfoClient,
+            lobbyId,
+            new JoinLobbyScreen(game, lobbyInfoClient)
+        ));
     }
 
     private TextButton createButton(String text) {

@@ -1,6 +1,7 @@
 package taltech.orbitgame.rendering;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -21,22 +22,46 @@ public class BulletRenderer implements Disposable {
         public float y;
         public float angleDeg;
         public float radius;
+        public int bulletType;
+        public float spinDeg;
     }
 
     private static final float BULLET_DRAW_SCALE = 2.0f;
+    private static final float BANANA_DRAW_SIZE = 26f;
+    private static final float BANANA_SPIN_SPEED = 720f;
 
     private final Texture bulletTexture;
+    private final Texture bananaBulletTexture;
+    private final Texture burgerBulletTexture;
     private final Map<Integer, ClientBullet> bullets;
 
     public BulletRenderer() {
-        this.bulletTexture = createOrangeBulletTexture();
+        this(null);
+    }
+
+    public BulletRenderer(String texturePath) {
+        if (texturePath != null && !texturePath.isEmpty()) {
+            this.bulletTexture = new Texture(Gdx.files.internal(texturePath));
+            this.bulletTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        } else {
+            this.bulletTexture = createOrangeBulletTexture();
+        }
+        this.bananaBulletTexture = new Texture(Gdx.files.internal("guns/banaan_bullet2.png"));
+        this.bananaBulletTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        FileHandle burgerHandle = Gdx.files.internal("bunny/Burger_to_throw.png");
+        if (burgerHandle.exists()) {
+            this.burgerBulletTexture = new Texture(burgerHandle);
+            this.burgerBulletTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+        } else {
+            this.burgerBulletTexture = bananaBulletTexture;
+        }
         this.bullets = new HashMap<>();
     }
 
     /**
      * Update bullet state from server data
      */
-    public void updateBullet(int bulletId, float x, float y, float angleDeg, float radius) {
+    public void updateBullet(int bulletId, float x, float y, float angleDeg, float radius, int bulletType) {
         ClientBullet bullet = bullets.get(bulletId);
         if (bullet == null) {
             bullet = new ClientBullet();
@@ -46,6 +71,7 @@ public class BulletRenderer implements Disposable {
         bullet.y = y;
         bullet.angleDeg = angleDeg;
         bullet.radius = radius;
+        bullet.bulletType = bulletType;
     }
 
     /**
@@ -60,12 +86,24 @@ public class BulletRenderer implements Disposable {
      */
     public void render(SpriteBatch batch) {
         for (ClientBullet bullet : bullets.values()) {
-            float drawW = Math.max(6f, bullet.radius * BULLET_DRAW_SCALE);
+            boolean isBanana = bullet.bulletType == 2;
+            boolean isBurger = bullet.bulletType == 3;
+            Texture texture = isBanana
+                ? bananaBulletTexture
+                : (isBurger ? burgerBulletTexture : bulletTexture);
+            float drawW = (isBanana || isBurger)
+                ? BANANA_DRAW_SIZE
+                : Math.max(6f, bullet.radius * BULLET_DRAW_SCALE);
             float drawH = drawW;
             float origin = drawW * 0.5f;
+            float rotation = bullet.angleDeg;
+            if (isBanana || isBurger) {
+                bullet.spinDeg = (bullet.spinDeg + BANANA_SPIN_SPEED * Gdx.graphics.getDeltaTime()) % 360f;
+                rotation += bullet.spinDeg;
+            }
 
             batch.draw(
-                bulletTexture,
+                texture,
                 bullet.x - origin,
                 bullet.y - origin,
                 origin,
@@ -74,11 +112,11 @@ public class BulletRenderer implements Disposable {
                 drawH,
                 1f,
                 1f,
-                bullet.angleDeg,
+                rotation,
                 0,
                 0,
-                bulletTexture.getWidth(),
-                bulletTexture.getHeight(),
+                texture.getWidth(),
+                texture.getHeight(),
                 false,
                 false
             );
@@ -113,5 +151,9 @@ public class BulletRenderer implements Disposable {
     @Override
     public void dispose() {
         bulletTexture.dispose();
+        bananaBulletTexture.dispose();
+        if (burgerBulletTexture != bananaBulletTexture) {
+            burgerBulletTexture.dispose();
+        }
     }
 }

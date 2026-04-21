@@ -4,9 +4,14 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
+import taltech.orbitgame.audio.AudioManager;
 import taltech.orbitgame.client.GameClient;
 import taltech.orbitgame.client.InputHandler;
+import taltech.orbitgame.inventory.InventoryState;
+import taltech.orbitgame.item.ItemRegistry;
+import taltech.orbitgame.item.ItemStack;
 import taltech.orbitgame.network.Network.InputState;
+import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.world.Direction;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
@@ -24,23 +29,39 @@ public class PlayerController {
     private final GameClient gameClient;
     private final MapManager map;
     private final OrthographicCamera camera;
+    private final GameRenderer gameRenderer;
+    private final InventoryState inventoryState;
     private final float speed;
 
     private float localAimX;
     private float localAimY;
     private float shotCooldownTimer = 0f;
     private float timeSinceLastUpdate = 0f;
+    private boolean shootingBlocked = false;
 
     private final Vector3 mouseScreen;
     private final Vector3 mouseWorld;
 
     public PlayerController(Player player, InputHandler inputHandler, GameClient gameClient,
                            MapManager map, OrthographicCamera camera, float speed) {
+        this(player, inputHandler, gameClient, map, camera, speed, null, null);
+    }
+
+    public PlayerController(Player player, InputHandler inputHandler, GameClient gameClient,
+                           MapManager map, OrthographicCamera camera, float speed, GameRenderer gameRenderer) {
+        this(player, inputHandler, gameClient, map, camera, speed, gameRenderer, null);
+    }
+
+    public PlayerController(Player player, InputHandler inputHandler, GameClient gameClient,
+                            MapManager map, OrthographicCamera camera, float speed,
+                            GameRenderer gameRenderer, InventoryState inventoryState) {
         this.player = player;
         this.inputHandler = inputHandler;
         this.gameClient = gameClient;
         this.map = map;
         this.camera = camera;
+        this.gameRenderer = gameRenderer;
+        this.inventoryState = inventoryState;
         this.speed = speed;
 
         this.mouseScreen = new Vector3();
@@ -99,8 +120,22 @@ public class PlayerController {
         }
 
         // Handle shooting
-        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT) && shotCooldownTimer <= 0f && isInLobby) {
+        if (!shootingBlocked
+            && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
+            && shotCooldownTimer <= 0f
+            && hasUsableWeaponEquipped()
+            && isInLobby) {
+            if (player.getCharacterType().hasAttackAnimation()) {
+                player.triggerAttack();
+            }
             gameClient.sendShoot(localAimX, localAimY);
+            // Play shotgun sound for own shot at full volume
+            AudioManager.getInstance().playShotgunShot(player.getCenterX(), player.getCenterY(),
+                                                       player.getCenterX(), player.getCenterY(), true);
+            // Trigger screen shake effect
+            if (gameRenderer != null) {
+                gameRenderer.triggerScreenShake();
+            }
             shotCooldownTimer = SHOT_COOLDOWN;
         }
 
@@ -142,6 +177,7 @@ public class PlayerController {
         camera.unproject(mouseWorld);
         localAimX = mouseWorld.x;
         localAimY = mouseWorld.y;
+        player.setAimX(localAimX);
     }
 
     /**
@@ -173,5 +209,19 @@ public class PlayerController {
 
     public float getLocalAimY() {
         return localAimY;
+    }
+
+    public void setShootingBlocked(boolean blocked) {
+        this.shootingBlocked = blocked;
+    }
+
+    public boolean hasUsableWeaponEquipped() {
+        if (inventoryState == null) {
+            return true;
+        }
+        ItemStack activeWeaponStack = inventoryState.getActiveWeaponStack();
+        return activeWeaponStack != null
+            && !activeWeaponStack.isEmpty()
+            && ItemRegistry.isWeapon(activeWeaponStack.getItemTypeId());
     }
 }

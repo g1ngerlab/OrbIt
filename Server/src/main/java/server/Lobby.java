@@ -10,6 +10,9 @@ import server.model.ServerBullet;
 import server.model.ServerOrb;
 import server.npc.RobotSpawner;
 import server.world.MapCollisionGridCache;
+import taltech.orbitgame.item.ItemKind;
+import taltech.orbitgame.item.ItemRegistry;
+import taltech.orbitgame.item.ItemStack;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
@@ -25,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.logging.Logger;
 
+
 /**
  * Represents a game lobby that can hold multiple players
  */
@@ -33,6 +37,8 @@ public class Lobby {
     private static final int ROBOT_COUNT = 40;
     private static final float ROBOT_TERRITORY_RADIUS = 120f;
     private static final float MIN_ROBOT_SPAWN_DISTANCE = 48f;
+    private static final int PLAYER_SPAWN_ATTEMPTS = 600;
+    private static final float PLAYER_SPAWN_SCAN_STEP = 8f;
 
     private static final float PLAYER_WIDTH = 32f;
     private static final float PLAYER_HEIGHT = 48f;
@@ -53,11 +59,18 @@ public class Lobby {
     private static final float ORB_DROP_MAX_DISTANCE = 54f;
     private static final float ORB_RADIUS = 16f;
     private static final float ORB_PICKUP_RADIUS = 34f;
+    private static final int STARTER_WEAPON_ITEM_TYPE = ItemKind.STARTER_SHOTGUN.getId();
     private static final float ORB_INITIAL_SPEED_MIN = 70f;
     private static final float ORB_INITIAL_SPEED_MAX = 150f;
     private static final float ORB_DRAG_PER_SECOND = 3.2f;
     private static final float ORB_BOUNCE_DAMPING = 0.55f;
     private static final float ORB_SETTLE_SPEED = 12f;
+    private static final int INVENTORY_SLOTS = 12;
+    private static final float PLAYER_DROP_MIN_DISTANCE = 44f;
+    private static final float PLAYER_DROP_MAX_DISTANCE = 72f;
+    private static final long LOBBY_DURATION_MS = 10L * 60L * 1000L;
+    private static final long FREEZE_PHASE_START_MS = 60L * 1000L;
+    private static final long FREEZE_DAMAGE_DURATION_MS = 10L * 1000L;
 
     private final int lobbyId;
     private final String lobbyName;
@@ -69,17 +82,25 @@ public class Lobby {
     private final Map<Integer, ServerBullet> bullets;
     private final Map<Integer, Network.CorpseState> corpses;
     private final Map<Integer, ServerOrb> orbs;
-    private final Map<Integer, Integer> playerSessionOrbCounts;
+    private final Map<Integer, ItemStack[]> playerInventories;
     private final RobotSpawner robotSpawner;
     private final BulletCombatSystem bulletCombatSystem;
     private final NpcMeleeSystem npcMeleeSystem;
     private final BulletCombatCallbacks bulletCombatCallbacks;
     private final NpcMeleeCallbacks npcMeleeCallbacks;
 
+    // Refactored components
+    private final LobbyBroadcaster broadcaster;
+    private final LobbyItemDropManager itemDropManager;
+    private final LobbyInventoryManager inventoryManager;
+
     private int nextBulletId;
     private int nextCorpseId;
     private int nextOrbId;
     private long npcTick;
+    private long lobbyElapsedMs;
+    private long freezeDamageElapsedMs;
+    private boolean lobbyClosed;
     /** Timestamp (System.currentTimeMillis) when lobby became empty, or 0 if not empty */
     private long emptyTimestamp = 0;
 
@@ -94,7 +115,7 @@ public class Lobby {
         this.bullets = new HashMap<>();
         this.corpses = new ConcurrentHashMap<>();
         this.orbs = new ConcurrentHashMap<>();
-        this.playerSessionOrbCounts = new ConcurrentHashMap<>();
+        this.playerInventories = new ConcurrentHashMap<>();
         this.robotSpawner = new RobotSpawner(ROBOT_COUNT, ROBOT_TERRITORY_RADIUS, MIN_ROBOT_SPAWN_DISTANCE);
         this.bulletCombatSystem = new BulletCombatSystem(
             PLAYER_WIDTH,
@@ -115,16 +136,44 @@ public class Lobby {
         this.nextBulletId = 1;
         this.nextCorpseId = 1;
         this.nextOrbId = 1;
+        this.lobbyElapsedMs = 0L;
+        this.freezeDamageElapsedMs = 0L;
+        this.lobbyClosed = false;
         int spawned = robotSpawner.spawnInitial(npcManager, collisionGrid, random);
         LOGGER.info(lobbyTag() + "Spawned robots: " + spawned);
         this.npcTick = 0;
+
+        // Initialize refactored components
+        this.broadcaster = new LobbyBroadcaster(players);
+        this.itemDropManager = new LobbyItemDropManager(orbs, collisionGrid, random, nextOrbId);
+        this.inventoryManager = new LobbyInventoryManager(players, playerInventories, itemDropManager);
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
-        LobbyPlayer player = createPlayer(clientId, playerName, connection);
+        addPlayer(clientId, playerName, 1, connection, null);
+    }
+
+    public void addPlayer(int clientId, String playerName, Connection connection, List<Network.InventorySlotState> loadoutSlots) {
+        addPlayer(clientId, playerName, 1, connection, loadoutSlots);
+    }
+
+    public void addPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        addPlayer(clientId, playerName, characterId, connection, null);
+    }
+
+    public void addPlayer(int clientId, String playerName, int characterId, Connection connection, List<Network.InventorySlotState> loadoutSlots) {
+        if (lobbyClosed) {
+            return;
+        }
+        LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
         players.put(clientId, player);
-        playerSessionOrbCounts.put(clientId, 0);
-        emptyTimestamp = 0; // Lobby is no longer empty
+        playerInventories.put(clientId, inventoryManager.createEmptyInventory());
+        if (loadoutSlots == null || loadoutSlots.isEmpty()) {
+            inventoryManager.grantStarterWeaponIfMissing(clientId, STARTER_WEAPON_ITEM_TYPE);
+        } else {
+            inventoryManager.applyStartingLoadout(clientId, loadoutSlots);
+        }
+        emptyTimestamp = 0;
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
 
@@ -136,17 +185,16 @@ public class Lobby {
     public void removePlayer(int clientId) {
         LobbyPlayer player = players.remove(clientId);
         if (player != null) {
-            playerSessionOrbCounts.remove(clientId);
+            playerInventories.remove(clientId);
             LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " left. Total players: " + players.size());
 
-            // Track when lobby became empty
             if (players.isEmpty() && emptyTimestamp == 0) {
                 emptyTimestamp = System.currentTimeMillis();
+                closeLobby("empty");
             }
 
-            // Notify all remaining players
             Network.PlayerLeft left = new Network.PlayerLeft(clientId);
-            broadcastToAll(left);
+            broadcaster.broadcastToAll(left);
         }
     }
 
@@ -155,19 +203,57 @@ public class Lobby {
         if (player != null) {
             player.setPositionAndAim(x, y, aimX, aimY);
 
-            // Broadcast position update to all other players
             Network.PlayerPositionUpdate update = new Network.PlayerPositionUpdate(clientId, x, y, moving, aimX, aimY);
-            broadcastToOthers(clientId, update);
+            broadcaster.broadcastToOthers(clientId, update);
+
+            if (moving) {
+                Network.PlayerStep stepSound = new Network.PlayerStep(clientId, player.getPlayerName(), x, y);
+                broadcaster.broadcastToOthers(clientId, stepSound);
+            }
         }
     }
 
     public void queueShootRequest(int clientId, float targetX, float targetY) {
         if (players.containsKey(clientId)) {
+            LobbyPlayer shooter = players.get(clientId);
+
             pendingShots.offer(new PendingShot(clientId, targetX, targetY));
+
+            Network.PlayerShoot shootEvent = new Network.PlayerShoot(
+                clientId,
+                shooter.getPlayerName(),
+                shooter.getX(),
+                shooter.getY()
+            );
+            broadcaster.broadcastToAll(shootEvent);
+
+            LOGGER.fine(lobbyTag() + "Player " + shooter.getPlayerName() + " shot at (" + targetX + ", " + targetY + ")");
         }
     }
 
+    public void dropInventoryItem(int clientId, int slotIndex) {
+        inventoryManager.dropInventoryItem(clientId, slotIndex);
+    }
+
+    public void moveInventoryItem(int clientId, int fromSlotIndex, int toSlotIndex) {
+        inventoryManager.moveInventoryItem(clientId, fromSlotIndex, toSlotIndex);
+    }
+
+    public void purchaseShopItem(int clientId, int itemTypeId, int amount, int orbCost) {
+        LobbyPlayer player = players.get(clientId);
+        if (player == null) {
+            return;
+        }
+
+        boolean success = inventoryManager.purchaseItemWithOrbCost(clientId, itemTypeId, amount, orbCost);
+        String message = success ? "Purchase successful" : "Not enough ORB or inventory space";
+        player.getConnection().sendTCP(new Network.ShopPurchaseResult(success, message, itemTypeId, amount, orbCost));
+    }
+
     public void updateNpcs(float deltaTime) {
+        if (lobbyClosed) {
+            return;
+        }
         List<Vector2> playerPositions = collectPlayerPositions();
 
         npcManager.update(deltaTime, playerPositions, collisionGrid::isBlocked);
@@ -180,13 +266,84 @@ public class Lobby {
         );
         bulletCombatSystem.updateBullets(deltaTime, bullets, players, npcManager, collisionGrid, bulletCombatCallbacks);
         npcMeleeSystem.applyDamage(deltaTime, players, npcManager, npcMeleeCallbacks);
-        updateOrbsPhysics(deltaTime);
+        itemDropManager.updateOrbsPhysics(deltaTime);
         updateOrbPickups();
 
         npcTick++;
-        broadcastToAll(createNpcStateUpdate());
-        broadcastToAll(createBulletStateUpdate());
-        broadcastToAll(createOrbStateUpdate());
+        broadcaster.broadcastToAll(createNpcStateUpdate());
+        broadcaster.broadcastToAll(createBulletStateUpdate());
+        broadcaster.broadcastToAll(createOrbStateUpdate());
+    }
+
+    public void updateLobbyTimer(float deltaTime) {
+        if (lobbyClosed) {
+            return;
+        }
+
+        lobbyElapsedMs = Math.min(LOBBY_DURATION_MS, lobbyElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
+        long remainingMs = getRemainingLobbyTimeMs();
+        boolean freezePhase = remainingMs <= FREEZE_PHASE_START_MS;
+
+        if (freezePhase && freezeDamageElapsedMs < FREEZE_DAMAGE_DURATION_MS && !players.isEmpty()) {
+            applyFreezeDamage(deltaTime);
+            freezeDamageElapsedMs = Math.min(FREEZE_DAMAGE_DURATION_MS, freezeDamageElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
+        }
+
+        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) remainingMs, freezePhase));
+
+        if (remainingMs <= 0L) {
+            closeLobby("timer_expired");
+        }
+    }
+
+    public void forceAdvanceToFinalMinuteForTesting() {
+        if (lobbyClosed) {
+            return;
+        }
+        lobbyElapsedMs = Math.max(lobbyElapsedMs, LOBBY_DURATION_MS - FREEZE_PHASE_START_MS);
+        freezeDamageElapsedMs = 0L;
+        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) getRemainingLobbyTimeMs(), true));
+    }
+
+    public boolean isClosed() {
+        return lobbyClosed;
+    }
+
+    public long getRemainingLobbyTimeMs() {
+        return Math.max(0L, LOBBY_DURATION_MS - lobbyElapsedMs);
+    }
+
+    private void applyFreezeDamage(float deltaTime) {
+        if (players.isEmpty()) {
+            return;
+        }
+
+        float damageFactor = Math.max(0f, deltaTime / (FREEZE_DAMAGE_DURATION_MS / 1000f));
+        List<LobbyPlayer> killedPlayers = new ArrayList<>();
+
+        for (LobbyPlayer player : new ArrayList<>(players.values())) {
+            if (player.isDead()) {
+                continue;
+            }
+            float damage = player.getMaxHealth() * damageFactor;
+            player.takeDamage(damage);
+            broadcastPlayerHealth(player);
+            if (player.isDead()) {
+                killedPlayers.add(player);
+            }
+        }
+
+        for (LobbyPlayer killedPlayer : killedPlayers) {
+            onPlayerKilled(killedPlayer, "freeze");
+        }
+    }
+
+    private void closeLobby(String reason) {
+        if (lobbyClosed) {
+            return;
+        }
+        lobbyClosed = true;
+        broadcaster.broadcastToAll(new Network.LobbyClosed(lobbyId, reason));
     }
 
     public boolean hasPlayer(int clientId) {
@@ -242,6 +399,7 @@ public class Lobby {
         for (ServerOrb orb : orbs.values()) {
             Network.OrbState state = new Network.OrbState();
             state.orbId = orb.getOrbId();
+            state.itemType = orb.getItemTypeId();
             state.x = orb.getX();
             state.y = orb.getY();
             state.radius = orb.getRadius();
@@ -292,7 +450,87 @@ public class Lobby {
     }
 
     private LobbyPlayer createPlayer(int clientId, String playerName, Connection connection) {
-        return new LobbyPlayer(clientId, playerName, connection, 400f, 300f, PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
+        return createPlayer(clientId, playerName, 1, connection);
+    }
+
+    private LobbyPlayer createPlayer(int clientId, String playerName, int characterId, Connection connection) {
+        int normalizedCharacterId = characterId <= 0 ? 1 : characterId;
+        float[] spawn = findRandomPlayerSpawn();
+        return new LobbyPlayer(clientId, playerName, normalizedCharacterId,
+            connection, spawn[0], spawn[1], PLAYER_WIDTH, PLAYER_HEIGHT, 100f);
+    }
+
+    private float[] findRandomPlayerSpawn() {
+        float maxSpawnX = Math.max(0f, collisionGrid.getMapWidthPx() - PLAYER_WIDTH);
+        float maxSpawnY = Math.max(0f, collisionGrid.getMapHeightPx() - PLAYER_HEIGHT);
+
+        for (int attempt = 0; attempt < PLAYER_SPAWN_ATTEMPTS; attempt++) {
+            float x = maxSpawnX <= 0f ? 0f : random.nextFloat() * maxSpawnX;
+            float y = maxSpawnY <= 0f ? 0f : random.nextFloat() * maxSpawnY;
+            if (isValidPlayerSpawn(x, y)) {
+                return new float[] {x, y};
+            }
+        }
+
+        for (float y = 0f; y <= maxSpawnY; y += PLAYER_SPAWN_SCAN_STEP) {
+            for (float x = 0f; x <= maxSpawnX; x += PLAYER_SPAWN_SCAN_STEP) {
+                if (isValidPlayerSpawn(x, y)) {
+                    return new float[] {x, y};
+                }
+            }
+        }
+
+        float[] randomOpen = collisionGrid.findRandomOpenPosition(random);
+        float fallbackX = clamp(randomOpen[0] - PLAYER_WIDTH * 0.5f, 0f, maxSpawnX);
+        float fallbackY = clamp(randomOpen[1] - PLAYER_HEIGHT * 0.5f, 0f, maxSpawnY);
+        if (isValidPlayerSpawn(fallbackX, fallbackY)) {
+            return new float[] {fallbackX, fallbackY};
+        }
+        return new float[] {0f, 0f};
+    }
+
+    private boolean isValidPlayerSpawn(float x, float y) {
+        float maxSpawnX = collisionGrid.getMapWidthPx() - PLAYER_WIDTH;
+        float maxSpawnY = collisionGrid.getMapHeightPx() - PLAYER_HEIGHT;
+        if (x < 0f || y < 0f || x > maxSpawnX || y > maxSpawnY) {
+            return false;
+        }
+
+        float right = x + PLAYER_WIDTH - 0.01f;
+        float top = y + PLAYER_HEIGHT - 0.01f;
+        float centerX = x + PLAYER_WIDTH * 0.5f;
+        float centerY = y + PLAYER_HEIGHT * 0.5f;
+
+        if (collisionGrid.isBlocked(x, y)
+            || collisionGrid.isBlocked(right, y)
+            || collisionGrid.isBlocked(x, top)
+            || collisionGrid.isBlocked(right, top)
+            || collisionGrid.isBlocked(centerX, centerY)) {
+            return false;
+        }
+
+        for (LobbyPlayer existing : players.values()) {
+            if (rectanglesOverlap(x, y, PLAYER_WIDTH, PLAYER_HEIGHT,
+                existing.getX(), existing.getY(), PLAYER_WIDTH, PLAYER_HEIGHT)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean rectanglesOverlap(float ax, float ay, float aw, float ah,
+                                             float bx, float by, float bw, float bh) {
+        return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    private static float clamp(float value, float min, float max) {
+        if (value < min) {
+            return min;
+        }
+        if (value > max) {
+            return max;
+        }
+        return value;
     }
 
     private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
@@ -305,7 +543,8 @@ public class Lobby {
                     player.getX(),
                     player.getY(),
                     player.getAimX(),
-                    player.getAimY()
+                    player.getAimY(),
+                    player.getCharacterId()
                 ));
             }
         }
@@ -318,7 +557,8 @@ public class Lobby {
             player.getClientId(),
             player.getPlayerName(),
             player.getX(),
-            player.getY()
+            player.getY(),
+            player.getCharacterId()
         );
         broadcastToOthers(player.getClientId(), joined);
     }
@@ -328,10 +568,7 @@ public class Lobby {
         connection.sendTCP(createBulletStateUpdate());
         connection.sendTCP(createCorpseStateUpdate());
         connection.sendTCP(createOrbStateUpdate());
-        connection.sendTCP(new Network.SessionOrbCountUpdate(
-            connection.getID(),
-            playerSessionOrbCounts.getOrDefault(connection.getID(), 0)
-        ));
+        connection.sendTCP(inventoryManager.getInventoryStateUpdate(connection.getID()));
     }
 
     private void updateOrbPickups() {
@@ -352,10 +589,9 @@ public class Lobby {
             }
 
             if (collector != null) {
-                toRemove.add(orb.getOrbId());
-                int newCount = playerSessionOrbCounts.getOrDefault(collector.getClientId(), 0) + 1;
-                playerSessionOrbCounts.put(collector.getClientId(), newCount);
-                collector.getConnection().sendTCP(new Network.SessionOrbCountUpdate(collector.getClientId(), newCount));
+                if (inventoryManager.addItemToInventory(collector.getClientId(), orb.getItemTypeId(), 1)) {
+                    toRemove.add(orb.getOrbId());
+                }
             }
         }
 
@@ -435,13 +671,36 @@ public class Lobby {
             + player.getPlayerName() + "! HP: " + player.getCurrentHealth() + "/" + player.getMaxHealth());
         broadcastPlayerHealth(player);
         broadcastNpcAttack();
+
+        // Send hit sound to all clients for audio playback
+        // Find the attacking NPC(s) and get their position
+        for (Npc npc : npcManager.getNpcs()) {
+            if (npc.isChasing() && Math.hypot(npc.getPosition().x - player.getX(), npc.getPosition().y - player.getY()) < 100f) {
+                Network.NpcHitSound hitSound = new Network.NpcHitSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
+                broadcastToAll(hitSound);
+                break; // Only one NPC hit at a time
+            }
+        }
     }
 
     private void onPlayerKilled(LobbyPlayer player, String reason) {
+        onPlayerKilled(player, reason, -1);
+    }
+
+    private void onPlayerKilled(LobbyPlayer player, String reason, int killerClientId) {
         LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " killed by " + reason + "!");
+        if ("bullet".equals(reason) || "freeze".equals(reason)) {
+            inventoryManager.dropAllInventoryItems(player);
+        }
         addPlayerCorpse(player);
-        broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId()));
+        Network.EntityDied entityDied = new Network.EntityDied(Network.EntityDied.TYPE_PLAYER, player.getClientId());
+        entityDied.killerId = killerClientId;
+        broadcaster.broadcastToAll(entityDied);
         players.remove(player.getClientId());
+        playerInventories.remove(player.getClientId());
+        if (players.isEmpty()) {
+            closeLobby("empty");
+        }
         if ("NPC melee".equals(reason)) {
             broadcastNpcAttack();
         }
@@ -458,24 +717,37 @@ public class Lobby {
     private void onNpcKilledByBullet(Npc npc) {
         LOGGER.info(lobbyTag() + "NPC #" + npc.getId() + " killed!");
         addRobotButlerCorpse(npc);
-        spawnOrbsAroundNpc(npc);
+        itemDropManager.spawnOrbsAroundNpc(npc);
         broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
+
+        // Send death sound to all clients for audio playback
+        Network.NpcDeathSound deathSound = new Network.NpcDeathSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
+        broadcastToAll(deathSound);
     }
 
     private void spawnOrbsAroundNpc(Npc npc) {
         int dropCount = ORB_DROP_MIN + random.nextInt(ORB_DROP_MAX - ORB_DROP_MIN + 1);
+        spawnOrbsAroundPoint(
+            npc.getPosition().x,
+            npc.getPosition().y,
+            dropCount,
+            ORB_DROP_MIN_DISTANCE,
+            ORB_DROP_MAX_DISTANCE
+        );
+    }
+
+    private void spawnOrbsAroundPoint(float centerX, float centerY, int dropCount, float minDistance, float maxDistance) {
 
         for (int i = 0; i < dropCount; i++) {
-            float x = npc.getPosition().x;
-            float y = npc.getPosition().y;
+            float x = centerX;
+            float y = centerY;
             boolean placed = false;
 
             for (int attempt = 0; attempt < 10; attempt++) {
                 double angle = random.nextDouble() * Math.PI * 2.0;
-                float distance = ORB_DROP_MIN_DISTANCE
-                    + random.nextFloat() * (ORB_DROP_MAX_DISTANCE - ORB_DROP_MIN_DISTANCE);
-                float candidateX = npc.getPosition().x + (float) Math.cos(angle) * distance;
-                float candidateY = npc.getPosition().y + (float) Math.sin(angle) * distance;
+                float distance = minDistance + random.nextFloat() * (maxDistance - minDistance);
+                float candidateX = centerX + (float) Math.cos(angle) * distance;
+                float candidateY = centerY + (float) Math.sin(angle) * distance;
                 if (!collisionGrid.isBlocked(candidateX, candidateY)) {
                     x = candidateX;
                     y = candidateY;
@@ -485,8 +757,8 @@ public class Lobby {
             }
 
             if (!placed) {
-                x = npc.getPosition().x;
-                y = npc.getPosition().y;
+                x = centerX;
+                y = centerY;
             }
 
             double angle = random.nextDouble() * Math.PI * 2.0;
@@ -496,9 +768,117 @@ public class Lobby {
             float velocityY = (float) Math.sin(angle) * initialSpeed;
 
             int orbId = nextOrbId++;
-            ServerOrb orb = new ServerOrb(orbId, x, y, ORB_RADIUS, velocityX, velocityY);
+            ServerOrb orb = new ServerOrb(orbId, ItemKind.ORB.getId(), x, y, ORB_RADIUS, velocityX, velocityY);
             orbs.put(orbId, orb);
         }
+    }
+
+    private ItemStack[] createEmptyInventory() {
+        return new ItemStack[INVENTORY_SLOTS];
+    }
+
+    private boolean addItemToInventory(int clientId, int itemTypeId, int amount) {
+        if (amount <= 0 || itemTypeId == ItemKind.NONE.getId()) {
+            return false;
+        }
+
+        ItemStack[] inventory = playerInventories.get(clientId);
+        if (inventory == null) {
+            return false;
+        }
+
+        int remaining = amount;
+        int maxStack = Math.max(1, ItemRegistry.getMaxStack(itemTypeId));
+
+        for (int i = 0; i < inventory.length; i++) {
+            ItemStack slot = inventory[i];
+            if (slot == null || slot.getItemTypeId() != itemTypeId || slot.getAmount() >= maxStack) {
+                continue;
+            }
+
+            int canAdd = Math.min(remaining, maxStack - slot.getAmount());
+            slot.add(canAdd);
+            remaining -= canAdd;
+            if (remaining <= 0) {
+                sendInventoryUpdate(clientId);
+                return true;
+            }
+        }
+
+        for (int i = 0; i < inventory.length; i++) {
+            if (inventory[i] == null || inventory[i].isEmpty()) {
+                int put = Math.min(remaining, maxStack);
+                inventory[i] = new ItemStack(itemTypeId, put);
+                remaining -= put;
+                if (remaining <= 0) {
+                    sendInventoryUpdate(clientId);
+                    return true;
+                }
+            }
+        }
+
+        if (remaining < amount) {
+            sendInventoryUpdate(clientId);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void dropAllInventoryItems(LobbyPlayer player) {
+        ItemStack[] inventory = playerInventories.get(player.getClientId());
+        if (inventory == null) {
+            return;
+        }
+
+        for (int i = 0; i < inventory.length; i++) {
+            ItemStack stack = inventory[i];
+            if (stack != null && stack.getAmount() > 0) {
+                dropStackFromPlayerPosition(player, stack.getItemTypeId(), stack.getAmount());
+            }
+            inventory[i] = null;
+        }
+    }
+
+    private void sendInventoryUpdate(int clientId) {
+        LobbyPlayer player = players.get(clientId);
+        if (player == null) {
+            return;
+        }
+        player.getConnection().sendTCP(createInventoryStateUpdate(clientId));
+    }
+
+    private Network.InventoryStateUpdate createInventoryStateUpdate(int clientId) {
+        Network.InventoryStateUpdate update = new Network.InventoryStateUpdate(clientId);
+        ItemStack[] inventory = playerInventories.get(clientId);
+
+        for (int i = 0; i < INVENTORY_SLOTS; i++) {
+            ItemStack stack = (inventory != null && i < inventory.length) ? inventory[i] : null;
+            int amount = stack == null ? 0 : Math.max(0, stack.getAmount());
+            int itemType = stack == null ? Network.ItemType.NONE : stack.getItemTypeId();
+            update.slots.add(new Network.InventorySlotState(itemType, amount));
+        }
+
+        return update;
+    }
+
+    private boolean dropStackFromPlayerPosition(LobbyPlayer player, int itemTypeId, int amount) {
+        if (amount <= 0) {
+            return false;
+        }
+
+        if (!ItemRegistry.isDroppableInWorld(itemTypeId)) {
+            return false;
+        }
+
+        float centerX = player.getX() + PLAYER_WIDTH * 0.5f;
+        float centerY = player.getY() + PLAYER_HEIGHT * 0.5f;
+        if (itemTypeId == ItemKind.ORB.getId()) {
+            spawnOrbsAroundPoint(centerX, centerY, amount, PLAYER_DROP_MIN_DISTANCE, PLAYER_DROP_MAX_DISTANCE);
+            return true;
+        }
+
+        return false;
     }
 
     private String lobbyTag() {
@@ -512,8 +892,8 @@ public class Lobby {
         }
 
         @Override
-        public void onPlayerKilled(LobbyPlayer player) {
-            Lobby.this.onPlayerKilled(player, "bullet");
+        public void onPlayerKilled(LobbyPlayer player, int killerClientId) {
+            Lobby.this.onPlayerKilled(player, "bullet", killerClientId);
         }
 
         @Override

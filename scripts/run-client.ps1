@@ -1,5 +1,4 @@
 param(
-    [string]$ServerHost,
     [switch]$NoDaemon,
     [switch]$PlainConsole
 )
@@ -13,14 +12,13 @@ if (-not (Test-Path $wrapperJar)) {
     throw "Gradle wrapper jar not found: $wrapperJar"
 }
 
-if ($ServerHost) {
-    $env:ORBIT_SERVER_HOST = $ServerHost
-}
-
 $arguments = @("-classpath", $wrapperJar, "org.gradle.wrapper.GradleWrapperMain")
 if ($NoDaemon) { $arguments += "--no-daemon" }
 if ($PlainConsole) { $arguments += "--console"; $arguments += "plain" }
 $arguments += "lwjgl3:run"
+
+Write-Host "Starting client..."
+Write-Host "Configure server connection in: core/src/main/java/taltech/orbitgame/network/NetworkConfig.java"
 
 Push-Location $repoRoot
 try {

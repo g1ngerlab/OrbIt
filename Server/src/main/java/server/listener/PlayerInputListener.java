@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,15 +30,19 @@ public class PlayerInputListener implements Listener {
     private final Map<Integer, String> connectedClients;
     private final Map<Integer, Lobby> lobbies;
     private final Map<Integer, Integer> clientToLobby; // Maps clientId to lobbyId
+    private final Map<Integer, String> reservedNames; // Maps connectionId to reserved player name (passed availability check)
     private final ScheduledExecutorService npcLoop;
-    private int nextLobbyId = 1; // Counter for generating unique lobby IDs
+    private final ScheduledExecutorService lobbyCreationExecutor;
+    private final AtomicInteger nextLobbyId = new AtomicInteger(1); // Counter for generating unique lobby IDs
 
     public PlayerInputListener() {
         this.connectedClients = new ConcurrentHashMap<>();
         this.lobbies = new ConcurrentHashMap<>();
         this.clientToLobby = new ConcurrentHashMap<>();
+        this.reservedNames = new ConcurrentHashMap<>();
         this.server = new Server();
         this.npcLoop = Executors.newSingleThreadScheduledExecutor();
+        this.lobbyCreationExecutor = Executors.newSingleThreadScheduledExecutor();
         Network.register(server);
 
         server.addListener(this);
@@ -55,6 +60,7 @@ public class PlayerInputListener implements Listener {
     }
 
     public void stopServer() {
+        lobbyCreationExecutor.shutdownNow();
         npcLoop.shutdownNow();
         server.stop();
     }
@@ -82,6 +88,9 @@ public class PlayerInputListener implements Listener {
                 }
             }
         }
+
+        // Also remove reserved name if this connection had one
+        reservedNames.remove(connection.getID());
     }
 
     @Override
@@ -98,6 +107,11 @@ public class PlayerInputListener implements Listener {
 
         if (object instanceof Network.RequestLobbyInfo) {
             handleRequestLobbyInfo(connection);
+            return;
+        }
+
+        if (object instanceof Network.CheckPlayerAvailability) {
+            handleCheckPlayerAvailability(connection, (Network.CheckPlayerAvailability) object);
             return;
         }
 
@@ -121,31 +135,57 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
+        if (object instanceof Network.DropItemRequest) {
+            handleDropItemRequest(connection, (Network.DropItemRequest) object);
+            return;
+        }
+
+        if (object instanceof Network.MoveInventoryItemRequest) {
+            handleMoveInventoryItemRequest(connection, (Network.MoveInventoryItemRequest) object);
+            return;
+        }
+
+        if (object instanceof Network.ShopPurchaseRequest) {
+            handleShopPurchaseRequest(connection, (Network.ShopPurchaseRequest) object);
+            return;
+        }
+
+        if (object instanceof Network.LobbyTimerDebugSkip) {
+            handleLobbyTimerDebugSkip(connection);
+            return;
+        }
+
         if (object instanceof Network.InputState) {
             handleInputState(connection, (Network.InputState) object);
         }
     }
 
     private void handleCreateLobby(Connection connection, Network.CreateLobby createLobby) {
-        try {
-            String lobbyName = normalizeLobbyName(createLobby.lobbyName);
-            int lobbyId = nextLobbyId++;
-            Lobby lobby = new Lobby(lobbyId, lobbyName);
-            lobbies.put(lobbyId, lobby);
+        String lobbyName = normalizeLobbyName(createLobby == null ? null : createLobby.lobbyName);
+        int lobbyId = nextLobbyId.getAndIncrement();
 
-            LOGGER.log(Level.INFO, "[Server] Created lobby {0} with name: {1}", new Object[]{lobbyId, lobbyName});
-            connection.sendTCP(new Network.LobbyCreated(lobbyId, lobbyName));
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "[Server] Failed to create lobby", e);
-            connection.sendTCP(new Network.LobbyCreateFailed(
-                e.getMessage() == null ? "Lobby creation failed" : e.getMessage()
-            ));
-        }
+        lobbyCreationExecutor.execute(() -> {
+            try {
+                long startedMs = System.currentTimeMillis();
+                Lobby lobby = new Lobby(lobbyId, lobbyName);
+                lobbies.put(lobbyId, lobby);
+
+                LOGGER.log(Level.INFO,
+                    "[Server] Created lobby {0} with name: {1} in {2} ms",
+                    new Object[]{lobbyId, lobbyName, System.currentTimeMillis() - startedMs});
+                connection.sendTCP(new Network.LobbyCreated(lobbyId, lobbyName));
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "[Server] Failed to create lobby", e);
+                connection.sendTCP(new Network.LobbyCreateFailed(
+                    e.getMessage() == null ? "Lobby creation failed" : e.getMessage()
+                ));
+            }
+        });
     }
 
     private String normalizeLobbyName(String rawName) {
         if (rawName == null || rawName.trim().isEmpty()) {
-            return "Lobby " + nextLobbyId;
+            return "Lobby " + nextLobbyId.get();
         }
         String normalized = rawName.trim();
         return normalized.length() > 12 ? normalized.substring(0, 12) : normalized;
@@ -174,9 +214,51 @@ public class PlayerInputListener implements Listener {
             new Object[]{connection.getID(), lobbyInfo.lobbyPlayerCounts});
     }
 
+    private void handleCheckPlayerAvailability(Connection connection, Network.CheckPlayerAvailability request) {
+        String playerName = sanitizePlayerName(request.playerName, connection.getID());
+
+        // Check if this player name is already connected or reserved
+        if (connectedClients.containsValue(playerName) || reservedNames.containsValue(playerName)) {
+            LOGGER.log(Level.INFO, "[Server] Player availability check: {0} is UNAVAILABLE (already in game)", playerName);
+            Network.PlayerAvailabilityResponse response = new Network.PlayerAvailabilityResponse(
+                playerName, false, "Player already in game"
+            );
+            connection.sendTCP(response);
+        } else {
+            LOGGER.log(Level.INFO, "[Server] Player availability check: {0} is AVAILABLE", playerName);
+            // Reserve this name for this connection
+            reservedNames.put(connection.getID(), playerName);
+            LOGGER.log(Level.INFO, "[Server] Reserved name {0} for connection {1}", new Object[]{playerName, connection.getID()});
+            Network.PlayerAvailabilityResponse response = new Network.PlayerAvailabilityResponse(
+                playerName, true, "Available"
+            );
+            connection.sendTCP(response);
+        }
+    }
+
     private void handleLogin(Connection connection, Network.Login login) {
         String name = sanitizePlayerName(login == null ? null : login.name, connection.getID());
+
+        // Check if this player name is already connected
+        if (connectedClients.containsValue(name)) {
+            LOGGER.log(Level.WARNING, "[Server] Login rejected: Player {0} is already in game", name);
+            Network.LoginError error = new Network.LoginError("Player already in game");
+            connection.sendTCP(error);
+            return;
+        }
+
+        // Check if the name was reserved by this connection
+        String reservedName = reservedNames.get(connection.getID());
+        if (reservedName != null && !reservedName.equals(name)) {
+            LOGGER.log(Level.WARNING, "[Server] Login rejected: Player trying to login as {0} but reserved {1}", new Object[]{name, reservedName});
+            Network.LoginError error = new Network.LoginError("Player name mismatch - already reserved different name");
+            connection.sendTCP(error);
+            return;
+        }
+
         connectedClients.put(connection.getID(), name);
+        // Clear the reservation as it's now officially logged in
+        reservedNames.remove(connection.getID());
 
         LOGGER.log(Level.INFO, "[Server] Client logged in: {0}", name);
 
@@ -200,7 +282,8 @@ public class PlayerInputListener implements Listener {
             return;
         }
 
-        lobby.addPlayer(clientId, playerName, connection);
+        int characterId = Math.max(1, joinLobby.characterId);
+        lobby.addPlayer(clientId, playerName, characterId, connection, joinLobby.loadoutSlots);
         clientToLobby.put(clientId, joinLobby.lobbyId);
     }
 
@@ -216,6 +299,40 @@ public class PlayerInputListener implements Listener {
         if (lobby != null) {
             lobby.queueShootRequest(connection.getID(), shootRequest.targetX, shootRequest.targetY);
         }
+    }
+
+    private void handleDropItemRequest(Connection connection, Network.DropItemRequest dropItemRequest) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby != null) {
+            lobby.dropInventoryItem(connection.getID(), dropItemRequest.slotIndex);
+        }
+    }
+
+    private void handleMoveInventoryItemRequest(Connection connection,
+                                                Network.MoveInventoryItemRequest moveInventoryItemRequest) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby != null) {
+            lobby.moveInventoryItem(
+                connection.getID(),
+                moveInventoryItemRequest.fromSlotIndex,
+                moveInventoryItemRequest.toSlotIndex
+            );
+        }
+    }
+
+    private void handleLobbyTimerDebugSkip(Connection connection) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby != null) {
+            lobby.forceAdvanceToFinalMinuteForTesting();
+        }
+    }
+
+    private void handleShopPurchaseRequest(Connection connection, Network.ShopPurchaseRequest request) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby == null || request == null) {
+            return;
+        }
+        lobby.purchaseShopItem(connection.getID(), request.itemType, request.amount, request.orbCost);
     }
 
     private Lobby getLobbyForConnection(Connection connection) {
@@ -255,7 +372,7 @@ public class PlayerInputListener implements Listener {
             normalized = normalized.substring(0, 16);
         }
 
-        if (!normalized.matches("[A-Za-z0-9_]+")) {
+        if (!normalized.matches("\\w+")) {
             return "Player" + connectionId;
         }
 
@@ -267,8 +384,16 @@ public class PlayerInputListener implements Listener {
     private void startNpcLoop() {
         long periodMs = 1000L / NPC_TICK_RATE;
         npcLoop.scheduleAtFixedRate(() -> {
+            ArrayList<Integer> closedLobbies = new ArrayList<>();
             for (Lobby lobby : lobbies.values()) {
+                lobby.updateLobbyTimer(NPC_DELTA_TIME);
                 lobby.updateNpcs(NPC_DELTA_TIME);
+                if (lobby.isClosed()) {
+                    closedLobbies.add(lobby.getLobbyId());
+                }
+            }
+            for (Integer lobbyId : closedLobbies) {
+                lobbies.remove(lobbyId);
             }
             // Clean up lobbies that have been empty for too long
             lobbies.entrySet().removeIf(entry -> {

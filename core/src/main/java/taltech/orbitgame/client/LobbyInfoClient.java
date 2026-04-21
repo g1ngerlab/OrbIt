@@ -16,11 +16,14 @@ import java.util.Map;
  * Lightweight client for querying lobby information without joining
  */
 public class LobbyInfoClient {
-    private static final int CONNECT_TIMEOUT_MS = 2000;
-    private static final long RETRY_DELAY_MS = 1000L;
+    private static final int CONNECT_TIMEOUT_MS = 1000;  // Reduced from 2000ms for local network
+    private static final long INITIAL_RETRY_DELAY_MS = 100L;  // Reduced from 300ms
+    private static final long MAX_RETRY_DELAY_MS = 500L;  // Reduced from 2000ms
+    private static final int MAX_INITIAL_RETRIES = 3;  // Reduced from 5 attempts
 
     private final Client client;
     private final String serverHost;
+    private final int serverPort;
     private Map<Integer, Integer> lobbyPlayerCounts;
     private volatile boolean connected = false;
     private volatile boolean connectLoopRunning;
@@ -30,6 +33,7 @@ public class LobbyInfoClient {
     private LobbyInfoListener listener;
     private LobbyCreatedListener lobbyCreatedListener;
     private AllLobbiesListener allLobbiesListener;
+    private PlayerAvailabilityListener playerAvailabilityListener;
 
     public interface LobbyInfoListener {
         void onLobbyInfoReceived(Map<Integer, Integer> lobbyPlayerCounts);
@@ -44,10 +48,15 @@ public class LobbyInfoClient {
         void onAllLobbiesReceived(List<Network.LobbyListItem> lobbies);
     }
 
+    public interface PlayerAvailabilityListener {
+        void onAvailabilityChecked(String playerName, boolean available, String reason);
+    }
+
     public LobbyInfoClient() {
         lobbyPlayerCounts = new HashMap<>();
         client = new Client();
         serverHost = NetworkConfig.getServerHost();
+        serverPort = NetworkConfig.getServerPort();
         Network.register(client);
 
         client.addListener(new Listener() {
@@ -56,7 +65,7 @@ public class LobbyInfoClient {
                 connected = true;
                 retryAttempt = 0;
                 lastConnectionError = null;
-                System.out.println("[LobbyInfoClient] Connected to server " + serverHost);
+                System.out.println("[LobbyInfoClient] Connected to server " + serverHost + ":" + serverPort);
                 requestLobbyInfo();
             }
 
@@ -93,6 +102,14 @@ public class LobbyInfoClient {
                         allLobbiesListener.onAllLobbiesReceived(new ArrayList<>(info.lobbies));
                     }
                 }
+                if (object instanceof Network.PlayerAvailabilityResponse) {
+                    Network.PlayerAvailabilityResponse response = (Network.PlayerAvailabilityResponse) object;
+                    System.out.println("[LobbyInfoClient] Player availability check: " + response.playerName +
+                        " available=" + response.available + " reason=" + response.reason);
+                    if (playerAvailabilityListener != null) {
+                        playerAvailabilityListener.onAvailabilityChecked(response.playerName, response.available, response.reason);
+                    }
+                }
             }
 
             @Override
@@ -118,6 +135,10 @@ public class LobbyInfoClient {
         this.allLobbiesListener = listener;
     }
 
+    public void setPlayerAvailabilityListener(PlayerAvailabilityListener listener) {
+        this.playerAvailabilityListener = listener;
+    }
+
     public void connect() {
         if (connectLoopRunning) {
             return;
@@ -127,6 +148,7 @@ public class LobbyInfoClient {
         if (connectThread == null || !connectThread.isAlive()) {
             client.start();
             connectThread = new Thread(() -> {
+                long retryDelay = INITIAL_RETRY_DELAY_MS;
                 while (connectLoopRunning && !Thread.currentThread().isInterrupted()) {
                     if (client.isConnected()) {
                         sleepQuietly(300L);
@@ -135,13 +157,24 @@ public class LobbyInfoClient {
 
                     retryAttempt++;
                     try {
-                        System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to " + serverHost);
-                        client.connect(CONNECT_TIMEOUT_MS, "193.40.157.153", 8080); //connect to TalTech server
-                        //client.connect(CONNECT_TIMEOUT_MS, serverHost, Network.PORT); //connect to local server
+                        System.out.println("[LobbyInfoClient] Connecting (attempt " + retryAttempt + ") to "
+                            + serverHost + ":" + serverPort);
+                        client.connect(CONNECT_TIMEOUT_MS, serverHost, serverPort);
+                        retryDelay = INITIAL_RETRY_DELAY_MS; // Reset delay on successful connection
                     } catch (IOException e) {
                         lastConnectionError = e.getMessage();
                         System.err.println("[LobbyInfoClient] Connection failed: " + e.getMessage());
-                        sleepQuietly(RETRY_DELAY_MS);
+
+                        // Stop retrying after max attempts
+                        if (retryAttempt >= MAX_INITIAL_RETRIES) {
+                            System.out.println("[LobbyInfoClient] Max retries reached (" + MAX_INITIAL_RETRIES + "), giving up");
+                            connectLoopRunning = false;
+                            break;
+                        }
+
+                        // Exponential backoff up to max
+                        sleepQuietly(retryDelay);
+                        retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY_MS);
                     }
                 }
             }, "LobbyInfoClient-Connect");
@@ -180,9 +213,18 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.RequestAllLobbies());
             System.out.println("[LobbyInfoClient] Requested all lobbies");
         } else {
-            System.err.println("[LobbyInfoClient] Cannot request lobbies - not connected");
-            if (allLobbiesListener != null) {
-                allLobbiesListener.onAllLobbiesReceived(new ArrayList<>());
+            System.out.println("[LobbyInfoClient] Cannot request lobbies - not connected yet");
+        }
+    }
+
+    public void checkPlayerAvailability(String playerName) {
+        if (client.isConnected()) {
+            client.sendTCP(new Network.CheckPlayerAvailability(playerName));
+            System.out.println("[LobbyInfoClient] Checking player availability: " + playerName);
+        } else {
+            System.out.println("[LobbyInfoClient] Cannot check availability - not connected yet");
+            if (playerAvailabilityListener != null) {
+                playerAvailabilityListener.onAvailabilityChecked(playerName, false, "Not connected to server");
             }
         }
     }
@@ -192,7 +234,7 @@ public class LobbyInfoClient {
             client.sendTCP(new Network.CreateLobby(lobbyName));
             System.out.println("[LobbyInfoClient] Sent create lobby request: " + lobbyName);
         } else {
-            System.err.println("[LobbyInfoClient] Cannot create lobby - not connected");
+            System.out.println("[LobbyInfoClient] Cannot create lobby - not connected yet");
             if (lobbyCreatedListener != null) {
                 lobbyCreatedListener.onLobbyCreateFailed("Not connected to server");
             }

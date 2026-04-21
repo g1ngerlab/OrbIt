@@ -3,45 +3,72 @@ package taltech.orbitgame.client;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
+import taltech.orbitgame.player.PlayerProfile;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.network.Network.InputState;
 import taltech.orbitgame.network.NetworkConfig;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GameClient {
-    private Client client;
+    private final Client client;
     private int clientId = -1;
-    private int lobbyId = 1; // Default lobby
+    private final int lobbyId;
     private final String playerName;
+    private final ArrayList<Network.InventorySlotState> loadoutSlots;
     private final String serverHost;
+    private final int serverPort;
     private GameClientListener gameListener;
+    private boolean connectCalled = false;
 
     public interface GameClientListener {
-        void onPlayerJoined(int clientId, String playerName, float x, float y);
+        void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId);
         void onPlayerLeft(int clientId);
         void onPlayerPositionUpdate(int clientId, float x, float y, boolean moving, float aimX, float aimY);
         void onLobbyState(Network.LobbyState lobbyState);
         void onLobbyJoinConfirmed(float spawnX, float spawnY);
+        void onLobbyTimerState(Network.LobbyTimerState timerState);
+        void onLobbyClosed(Network.LobbyClosed lobbyClosed);
         void onNpcStateUpdate(Network.NpcStateUpdate npcStateUpdate);
         void onNpcAttack(Network.NpcAttack npcAttack);
         void onBulletStateUpdate(Network.BulletStateUpdate bulletStateUpdate);
         void onCorpseStateUpdate(Network.CorpseStateUpdate corpseStateUpdate);
         void onOrbStateUpdate(Network.OrbStateUpdate orbStateUpdate);
-        void onSessionOrbCountUpdate(Network.SessionOrbCountUpdate countUpdate);
+        void onInventoryStateUpdate(Network.InventoryStateUpdate inventoryUpdate);
         /** Called when a player's health changes (used to sync health bars). */
         void onPlayerHealthUpdate(Network.PlayerHealthUpdate healthUpdate);
         /** Called when a player or NPC dies and must be removed from the world. */
         void onEntityDied(Network.EntityDied entityDied);
+        /** Called when a player shoots. */
+        void onPlayerShoot(Network.PlayerShoot playerShoot);
+        /** Called when a player takes a step. */
+        void onPlayerStep(Network.PlayerStep playerStep);
+        /** Called when an NPC dies. */
+        void onNpcDeathSound(Network.NpcDeathSound npcDeathSound);
+        /** Called when an NPC hits a player. */
+        void onNpcHitSound(Network.NpcHitSound npcHitSound);
+        /** Called when an extraction point state changes. */
+        void onExtractionPointStateUpdate(Network.ExtractionPointStateUpdate stateUpdate);
+        /** Called when in-game shop purchase request is completed on server. */
+        void onShopPurchaseResult(Network.ShopPurchaseResult result);
     }
 
     public GameClient(int lobbyId, String playerName) {
+        this(lobbyId, playerName, new ArrayList<>());
+    }
+
+    public GameClient(int lobbyId, String playerName, List<Network.InventorySlotState> selectedLoadoutSlots) {
         this.lobbyId = lobbyId;
         this.playerName = sanitizeName(playerName);
+        this.loadoutSlots = selectedLoadoutSlots == null ? new ArrayList<>() : new ArrayList<>(selectedLoadoutSlots);
         this.serverHost = NetworkConfig.getServerHost();
+        this.serverPort = NetworkConfig.getServerPort();
         client = new Client();
         Network.register(client);
-        System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost + ", player=" + this.playerName);
+        System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost
+            + ", port=" + serverPort + ", player=" + this.playerName);
 
         client.addListener(new Listener() {
             @Override
@@ -54,14 +81,25 @@ public class GameClient {
 
             @Override
             public void received(Connection connection, Object object) {
+                if (object instanceof Network.LoginError) {
+                    Network.LoginError error = (Network.LoginError) object;
+                    System.out.println("[Client] Login error: " + error.reason);
+                    // Disconnect and notify about error
+                    client.close();
+                    return;
+                }
                 if (object instanceof Network.Registration) {
                     Network.Registration reg = (Network.Registration) object;
                     clientId = reg.id;
                     System.out.println("[Client] Registered as: " + reg.name + " (id=" + clientId + ")");
 
                     // Join the lobby after registration
-                    System.out.println("[Client] Requesting to join lobby " + lobbyId);
-                    Network.JoinLobby joinLobby = new Network.JoinLobby(lobbyId);
+                    System.out.println("[Client] Requesting to join lobby " + GameClient.this.lobbyId);
+                    Network.JoinLobby joinLobby = new Network.JoinLobby(
+                        GameClient.this.lobbyId,
+                        PlayerProfile.getSelectedCharacterId(),
+                        new ArrayList<>(GameClient.this.loadoutSlots)
+                    );
                     client.sendTCP(joinLobby);
                 }
                 if (object instanceof Network.LobbyState) {
@@ -75,7 +113,8 @@ public class GameClient {
                     Network.PlayerJoined joined = (Network.PlayerJoined) object;
                     System.out.println("[Client] Player joined: " + joined.playerName + " (id=" + joined.clientId + ")");
                     if (gameListener != null && joined.clientId != clientId) {
-                        gameListener.onPlayerJoined(joined.clientId, joined.playerName, joined.x, joined.y);
+                        gameListener.onPlayerJoined(joined.clientId, joined.playerName, joined.x, joined.y,
+                            joined.characterId);
                     }
                 }
                 if (object instanceof Network.PlayerLeft) {
@@ -96,6 +135,18 @@ public class GameClient {
                     System.out.println("[Client] Lobby join confirmed at spawn (" + confirmed.spawnX + ", " + confirmed.spawnY + ")");
                     if (gameListener != null) {
                         gameListener.onLobbyJoinConfirmed(confirmed.spawnX, confirmed.spawnY);
+                    }
+                }
+                if (object instanceof Network.LobbyTimerState) {
+                    Network.LobbyTimerState timerState = (Network.LobbyTimerState) object;
+                    if (gameListener != null) {
+                        gameListener.onLobbyTimerState(timerState);
+                    }
+                }
+                if (object instanceof Network.LobbyClosed) {
+                    Network.LobbyClosed lobbyClosed = (Network.LobbyClosed) object;
+                    if (gameListener != null) {
+                        gameListener.onLobbyClosed(lobbyClosed);
                     }
                 }
                 if (object instanceof Network.NpcStateUpdate) {
@@ -128,10 +179,10 @@ public class GameClient {
                         gameListener.onOrbStateUpdate(update);
                     }
                 }
-                if (object instanceof Network.SessionOrbCountUpdate) {
-                    Network.SessionOrbCountUpdate update = (Network.SessionOrbCountUpdate) object;
+                if (object instanceof Network.InventoryStateUpdate) {
+                    Network.InventoryStateUpdate update = (Network.InventoryStateUpdate) object;
                     if (gameListener != null) {
-                        gameListener.onSessionOrbCountUpdate(update);
+                        gameListener.onInventoryStateUpdate(update);
                     }
                 }
                 if (object instanceof Network.PlayerHealthUpdate) {
@@ -144,6 +195,42 @@ public class GameClient {
                     Network.EntityDied died = (Network.EntityDied) object;
                     if (gameListener != null) {
                         gameListener.onEntityDied(died);
+                    }
+                }
+                if (object instanceof Network.PlayerShoot) {
+                    Network.PlayerShoot playerShoot = (Network.PlayerShoot) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerShoot(playerShoot);
+                    }
+                }
+                if (object instanceof Network.PlayerStep) {
+                    Network.PlayerStep playerStep = (Network.PlayerStep) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerStep(playerStep);
+                    }
+                }
+                if (object instanceof Network.NpcDeathSound) {
+                    Network.NpcDeathSound npcDeathSound = (Network.NpcDeathSound) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcDeathSound(npcDeathSound);
+                    }
+                }
+                if (object instanceof Network.NpcHitSound) {
+                    Network.NpcHitSound npcHitSound = (Network.NpcHitSound) object;
+                    if (gameListener != null) {
+                        gameListener.onNpcHitSound(npcHitSound);
+                    }
+                }
+                if (object instanceof Network.ExtractionPointStateUpdate) {
+                    Network.ExtractionPointStateUpdate update = (Network.ExtractionPointStateUpdate) object;
+                    if (gameListener != null) {
+                        gameListener.onExtractionPointStateUpdate(update);
+                    }
+                }
+                if (object instanceof Network.ShopPurchaseResult) {
+                    Network.ShopPurchaseResult result = (Network.ShopPurchaseResult) object;
+                    if (gameListener != null) {
+                        gameListener.onShopPurchaseResult(result);
                     }
                 }
             }
@@ -164,15 +251,36 @@ public class GameClient {
     }
 
     public void connect() {
+        // Only attempt to connect if not already called
+        if (connectCalled) {
+            System.out.println("[Client] Connect already called, skipping...");
+            return;
+        }
+        connectCalled = true;
+
         client.start();
 
         new Thread(() -> {
-            try {
-                //client.connect(5000, serverHost, Network.PORT); // Use this for localhost testing
-                client.connect(5000, "193.40.157.153", 8080); //connect to TalTech server
-            } catch (IOException e) {
-                System.err.println("[Client] Connection failed: " + e.getMessage());
+            int maxRetries = 3;
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                    System.out.println("[Client] Attempting to connect (attempt " + attempt + "/" + maxRetries + ")...");
+                    client.connect(1000, serverHost, serverPort); // Reduced timeout from 2000 to 1000ms for faster feedback
+                    System.out.println("[Client] Connection succeeded");
+                    return;
+                } catch (IOException e) {
+                    System.err.println("[Client] Connection attempt " + attempt + " failed: " + e.getMessage());
+                    if (attempt < maxRetries) {
+                        try {
+                            Thread.sleep(100); // Reduced from 300ms for faster retry
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
             }
+            System.err.println("[Client] Failed to connect after " + maxRetries + " attempts");
         }, "Client-Connect").start();
     }
 
@@ -192,6 +300,30 @@ public class GameClient {
     public void sendShoot(float targetX, float targetY) {
         if (client.isConnected() && clientId != -1) {
             client.sendTCP(new Network.ShootRequest(targetX, targetY));
+        }
+    }
+
+    public void sendDropItem(int slotIndex) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.DropItemRequest(slotIndex));
+        }
+    }
+
+    public void sendMoveInventoryItem(int fromSlotIndex, int toSlotIndex) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.MoveInventoryItemRequest(fromSlotIndex, toSlotIndex));
+        }
+    }
+
+    public void sendToServer(Object packet) {
+        if (client != null && client.isConnected()) {
+            client.sendTCP(packet);
+        }
+    }
+
+    public void sendShopPurchase(int itemTypeId, int amount, int orbCost) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.ShopPurchaseRequest(itemTypeId, amount, orbCost));
         }
     }
 

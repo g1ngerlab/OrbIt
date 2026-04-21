@@ -5,6 +5,7 @@ package server.model;
  */
 public class ServerOrb {
     private final int orbId;
+    private final int itemTypeId;
     private float x;
     private float y;
     private final float radius;
@@ -12,8 +13,9 @@ public class ServerOrb {
     private float velocityY;
     private boolean settled;
 
-    public ServerOrb(int orbId, float x, float y, float radius, float velocityX, float velocityY) {
+    public ServerOrb(int orbId, int itemTypeId, float x, float y, float radius, float velocityX, float velocityY) {
         this.orbId = orbId;
+        this.itemTypeId = itemTypeId;
         this.x = x;
         this.y = y;
         this.radius = radius;
@@ -24,6 +26,10 @@ public class ServerOrb {
 
     public int getOrbId() {
         return orbId;
+    }
+
+    public int getItemTypeId() {
+        return itemTypeId;
     }
 
     public float getX() {
