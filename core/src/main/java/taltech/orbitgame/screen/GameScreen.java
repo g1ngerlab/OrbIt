@@ -274,7 +274,8 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         try {
             MapManager.LoadedMapData loadedData = mapLoadFuture.get();
             this.map = new MapManager(loadedData);
-            float speed = 120f;
+            float speed = 130f;
+//            120
             this.playerController = new PlayerController(
                 player, inputHandler, gameClient, map,
                 gameRenderer.getCameraController().getCamera(), speed, gameRenderer, inventoryFeature.getState()

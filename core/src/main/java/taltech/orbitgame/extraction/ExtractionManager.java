@@ -49,6 +49,14 @@ public class ExtractionManager {
         addExtractionPoint(268.2f, 238.0f, 96f);
         addExtractionPoint(1262.6f, 1466.3f, 96f);
         addExtractionPoint(1406.7f, 2939.7f, 96f);
+        addExtractionPoint(3500f, 585f, 96f);
+        addExtractionPoint(4720f, 1640f, 96f);
+        addExtractionPoint(2975f, 1350f, 96f);
+        addExtractionPoint(260f, 2095f, 96f);
+        addExtractionPoint(370f, 3930f, 96f);
+        addExtractionPoint(1490f, 4444f, 96f);
+        addExtractionPoint(4525f, 3065f, 96f);
+        addExtractionPoint(2835f, 2945f, 96f);
     }
 
     private void loadExtractionPointsFromMap() {
