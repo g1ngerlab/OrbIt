@@ -251,6 +251,7 @@ public class Lobby {
     }
 
     public void updateNpcs(float deltaTime) {
+        System.out.println("[LOOP] tick");
         if (lobbyClosed) {
             return;
         }
@@ -294,6 +295,40 @@ public class Lobby {
         if (remainingMs <= 0L) {
             closeLobby("timer_expired");
         }
+    }
+
+    public void handleMelee(int clientId, float targetX, float targetY) {
+
+        System.out.println("[MELEE] start");
+
+        LobbyPlayer attacker = players.get(clientId);
+        if (attacker == null || attacker.isDead()) {
+            System.out.println("[MELEE] attacker null/dead");
+            return;
+        }
+
+        float range = 50f;
+        float damage = 3f;
+
+        for (Npc npc : npcManager.getNpcs()) {
+
+            System.out.println("[MELEE] checking npc " + npc.getId());
+
+            float dx = npc.getPosition().x - attacker.getX();
+            float dy = npc.getPosition().y - attacker.getY();
+
+            if (dx * dx + dy * dy <= range * range) {
+                System.out.println("[MELEE] HIT npc " + npc.getId());
+
+                npc.takeDamage(damage);
+
+                System.out.println("[MELEE] damage applied");
+
+                break;
+            }
+        }
+
+        System.out.println("[MELEE] end");
     }
 
     public void forceAdvanceToFinalMinuteForTesting() {

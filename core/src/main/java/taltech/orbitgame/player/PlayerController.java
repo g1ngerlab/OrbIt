@@ -139,6 +139,16 @@ public class PlayerController {
             shotCooldownTimer = SHOT_COOLDOWN;
         }
 
+        if (!shootingBlocked
+            && Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)
+            && shotCooldownTimer <= 0f
+            && !hasUsableWeaponEquipped()
+            && isInLobby) {
+
+            gameClient.sendMelee(localAimX, localAimY);
+            shotCooldownTimer = SHOT_COOLDOWN;
+        }
+
         player.update(delta, moving);
     }
 

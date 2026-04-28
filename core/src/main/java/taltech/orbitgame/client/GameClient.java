@@ -303,6 +303,12 @@ public class GameClient {
         }
     }
 
+    public void sendMelee(float targetX, float targetY) {
+        if (client.isConnected() && clientId != -1) {
+            client.sendTCP(new Network.MeleeRequest(targetX, targetY));
+        }
+    }
+
     public void sendDropItem(int slotIndex) {
         if (client.isConnected() && clientId != -1) {
             client.sendTCP(new Network.DropItemRequest(slotIndex));
