@@ -67,6 +67,7 @@ public class Network {
         kryo.register(ExtractionPointStateUpdate.class);
         kryo.register(ExtractionPointsData.class);
         kryo.register(ExtractionPointData.class);
+        kryo.register(MeleeRequest.class);
     }
 
     public static class Login {
@@ -394,6 +395,18 @@ public class Network {
         public ShootRequest() {}
 
         public ShootRequest(float targetX, float targetY) {
+            this.targetX = targetX;
+            this.targetY = targetY;
+        }
+    }
+
+    public static class MeleeRequest {
+        public float targetX;
+        public float targetY;
+
+        public MeleeRequest() {}
+
+        public MeleeRequest(float targetX, float targetY) {
             this.targetX = targetX;
             this.targetY = targetY;
         }

@@ -9,8 +9,8 @@ public final class NetworkConfig {
     // Uncomment ONE of the following pairs:
 
     // === REMOTE SERVER (TalTech) - DEFAULT ===
-    static final String DEFAULT_HOST = "193.40.157.153";
-    private static final int DEFAULT_PORT = 8080;
+    public static final String DEFAULT_HOST = "localhost";
+    public static final int DEFAULT_PORT = 54555;
 
     // === LOCAL SERVER - Uncomment to use locally ===
     //private static final String DEFAULT_HOST = "localhost";
