@@ -36,6 +36,7 @@ public class SettingsMenuScreen implements Screen {
     private Texture buttonTexture;
     private Texture buttonPressedTexture;
     private BitmapFont pixelFont;
+    private Texture backgroundTexture;
 
     public SettingsMenuScreen(Main game) {
         this(game, null);
@@ -58,6 +59,9 @@ public class SettingsMenuScreen implements Screen {
 
         buttonPressedTexture = new Texture(Gdx.files.internal("Buttons/buttonPressed.png"));
         buttonPressedTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+
+        backgroundTexture = new Texture(Gdx.files.internal("MainMenuAssets/set.png"));
+        backgroundTexture.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
 
         // Load pixel font from assets
         pixelFont = FontManager.getMenuFont();
@@ -85,10 +89,11 @@ public class SettingsMenuScreen implements Screen {
 
         Label musicLabel = new Label("Music Volume", labelStyle);
         Slider musicSlider = new Slider(0f, 1f, 0.01f, false, sliderStyle);
-        musicSlider.setValue(AudioManager.getInstance().getMusicVolume());
+        float currentMusicVolume = AudioManager.getInstance().getMusicVolume();
+        musicSlider.setValue(currentMusicVolume);
 
         // Music Volume Value Label - Initialize with current value
-        Label musicValueLabel = new Label((int)(AudioManager.getInstance().getMusicVolume() * 100) + "%", labelStyle);
+        Label musicValueLabel = new Label((int)(currentMusicVolume * 100) + "%", labelStyle);
         musicSlider.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
@@ -100,10 +105,12 @@ public class SettingsMenuScreen implements Screen {
         // SFX Volume Label and Slider
         Label sfxLabel = new Label("SFX Volume", labelStyle);
         Slider sfxSlider = new Slider(0f, 1f, 0.01f, false, sliderStyle);
-        sfxSlider.setValue(AudioManager.getInstance().getSfxVolume());
+        float currentSfxVolume = AudioManager.getInstance().getSfxVolume();
 
         // SFX Volume Value Label - Initialize with current value
-        Label sfxValueLabel = new Label((int)(AudioManager.getInstance().getSfxVolume() * 100) + "%", labelStyle);
+        Label sfxValueLabel = new Label((int)(currentSfxVolume * 100) + "%", labelStyle);
+
+        sfxSlider.setValue(currentSfxVolume);
         sfxSlider.addListener(new ChangeListener() {
             @Override
             public void changed(ChangeListener.ChangeEvent event, com.badlogic.gdx.scenes.scene2d.Actor actor) {
@@ -115,14 +122,14 @@ public class SettingsMenuScreen implements Screen {
         // Add Music Volume section
         table.add(musicLabel).left().padBottom(10).row();
         Table musicTable = new Table();
-        musicTable.add(musicSlider).width(300).padRight(20);
+        musicTable.add(musicSlider).width(300).height(24).padRight(20);
         musicTable.add(musicValueLabel).width(50);
         table.add(musicTable).padBottom(30).row();
 
         // Add SFX Volume section
         table.add(sfxLabel).left().padBottom(10).row();
         Table sfxTable = new Table();
-        sfxTable.add(sfxSlider).width(300).padRight(20);
+        sfxTable.add(sfxSlider).width(300).height(24).padRight(20);
         sfxTable.add(sfxValueLabel).width(50);
         table.add(sfxTable).padBottom(60).row();
 
@@ -189,6 +196,11 @@ public class SettingsMenuScreen implements Screen {
         Gdx.gl.glClearColor(0, 0, 0, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        // Draw background
+        batch.begin();
+        batch.draw(backgroundTexture, 0, 0, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        batch.end();
+
         stage.act(delta);
         stage.draw();
     }
@@ -216,6 +228,7 @@ public class SettingsMenuScreen implements Screen {
         batch.dispose();
         buttonTexture.dispose();
         buttonPressedTexture.dispose();
+        backgroundTexture.dispose();
         // Font is managed by FontManager, don't dispose here
     }
 }
