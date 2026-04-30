@@ -311,6 +311,9 @@ public class Lobby {
         float damage = 3f;
 
         for (Npc npc : npcManager.getNpcs()) {
+            if (!npc.isAlive()) {
+                continue;
+            }
 
             System.out.println("[MELEE] checking npc " + npc.getId());
 
@@ -321,6 +324,9 @@ public class Lobby {
                 System.out.println("[MELEE] HIT npc " + npc.getId());
 
                 npc.takeDamage(damage);
+                if (npc.isDead()) {
+                    onNpcKilledByBullet(npc);
+                }
 
                 System.out.println("[MELEE] damage applied");
 
