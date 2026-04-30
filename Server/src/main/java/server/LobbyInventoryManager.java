@@ -298,14 +298,12 @@ public class LobbyInventoryManager {
 
         float centerX = player.getX() + PLAYER_WIDTH * 0.5f;
         float centerY = player.getY() + PLAYER_HEIGHT * 0.5f;
-        itemDropManager.spawnItemsAroundPoint(
-            itemTypeId,
-            centerX,
-            centerY,
-            amount,
-            PLAYER_DROP_MIN_DISTANCE,
-            PLAYER_DROP_MAX_DISTANCE
-        );
+        if (itemTypeId == ItemKind.ORB.getId()) {
+            itemDropManager.spawnOrbsAroundPoint(centerX, centerY, amount, PLAYER_DROP_MIN_DISTANCE, PLAYER_DROP_MAX_DISTANCE);
+            return true;
+        }
+
+        itemDropManager.spawnItemsAroundPoint(itemTypeId, centerX, centerY, amount, PLAYER_DROP_MIN_DISTANCE, PLAYER_DROP_MAX_DISTANCE);
         return true;
     }
 
