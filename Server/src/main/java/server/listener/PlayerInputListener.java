@@ -143,6 +143,26 @@ public class PlayerInputListener implements Listener {
                 return;
             }
 
+            if (object instanceof Network.DropItemRequest) {
+                handleDropItemRequest(connection, (Network.DropItemRequest) object);
+                return;
+            }
+
+            if (object instanceof Network.MoveInventoryItemRequest) {
+                handleMoveInventoryItemRequest(connection, (Network.MoveInventoryItemRequest) object);
+                return;
+            }
+
+            if (object instanceof Network.ShopPurchaseRequest) {
+                handleShopPurchaseRequest(connection, (Network.ShopPurchaseRequest) object);
+                return;
+            }
+
+            if (object instanceof Network.LobbyTimerDebugSkip) {
+                handleLobbyTimerDebugSkip(connection);
+                return;
+            }
+
             if (object instanceof Network.InputState) {
                 handleInputState(connection, (Network.InputState) object);
             }
