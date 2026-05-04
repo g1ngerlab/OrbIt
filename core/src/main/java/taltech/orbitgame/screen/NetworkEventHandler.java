@@ -136,6 +136,18 @@ public class NetworkEventHandler {
         });
     }
 
+    public void onPlayerMelee(Network.PlayerMelee playerMelee) {
+        Gdx.app.postRunnable(() -> {
+            if (playerMelee.clientId == gameClient.getClientId()) {
+                return;
+            }
+            RemotePlayer attacker = gameState.getRemotePlayers().getPlayer(playerMelee.clientId);
+            if (attacker != null) {
+                attacker.triggerPunch();
+            }
+        });
+    }
+
     public void onPlayerStep(Network.PlayerStep playerStep) {
         Gdx.app.postRunnable(() -> {
             RemotePlayer walker = gameState.getRemotePlayers().getPlayer(playerStep.clientId);
@@ -220,8 +232,13 @@ public class NetworkEventHandler {
 
     public void onNpcHitSound(Network.NpcHitSound npcHitSound) {
         Gdx.app.postRunnable(() -> {
-            AudioManager.getInstance().playNpcHit(npcHitSound.npcX, npcHitSound.npcY,
-                    localPlayer.getCenterX(), localPlayer.getCenterY());
+            if (npcHitSound.soundType == Network.NpcHitSound.TYPE_PLAYER_MELEE) {
+                AudioManager.getInstance().playMeleeHit(npcHitSound.npcX, npcHitSound.npcY,
+                        localPlayer.getCenterX(), localPlayer.getCenterY(), false);
+            } else {
+                AudioManager.getInstance().playNpcHit(npcHitSound.npcX, npcHitSound.npcY,
+                        localPlayer.getCenterX(), localPlayer.getCenterY());
+            }
         });
     }
 }

@@ -23,12 +23,14 @@ LobbyMusic/onon.mp3
 LobbyMusic/outcast.mp3
 LobbyMusic/practisemode.mp3
 MainMenuAssets/orbit.png
+MainMenuAssets/set.png
 Space Background Laptop.gif
 UI/inventory_border.png
 bunny/BUNNY_CHARACTER.png
 bunny/Burger_to_throw.png
 bunny/attack_bunny.png
 bunny/back_bunny.png
+bunny/ebani_punch.png
 bunny/forward_bunny.png
 bunny/idle_bunny.png
 bunny/right_bunny.png
@@ -37,6 +39,7 @@ guns/banaan_bullet2.png
 guns/crosshair.png
 guns/test_bullet.png
 guns/test_shotgun.png
+introvideo/intro.mp4
 loot/golden_frog.png
 loot/orb_v1.png
 maps/TalTechMAP.ldtk
@@ -45,6 +48,7 @@ npc/robotbutler.png
 npc/runbutler.png
 player/BadBoy.png
 player/Math_character.png
+player/punch_sprite.png
 player/run_down.png
 player/run_side.png
 player/run_up.png
@@ -55,12 +59,20 @@ pupu/attack_pupu.png
 pupu/back_pupu.png
 pupu/down_pupu.png
 pupu/papapa.png
+pupu/pupu_punch.png
 pupu/side_pupu.png
 sounds/death.mp3
 sounds/hit.mp3
 sounds/npc_death.mp3
 sounds/orb.mp3
 sounds/shotgun.mp3
+sounds/slap1.mp3
+sounds/slap2.mp3
+sounds/slap3.mp3
+sounds/slap4.mp3
+sounds/slap5.mp3
+sounds/slap6.mp3
+sounds/slap7.mp3
 sounds/step.mp3
 tiles/Buildings_Colour2.png
 tiles/TX Plant with Shadow.png

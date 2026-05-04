@@ -3,6 +3,8 @@ package taltech.orbitgame.audio;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.audio.Sound;
 
+import java.util.Random;
+
 /**
  * Manages all sound effects in the game with distance-based volume calculation
  */
@@ -11,8 +13,10 @@ public class SoundEffectManager {
     private Sound stepSound;
     private Sound npcDeathSound;
     private Sound npcHitSound;
+    private Sound[] meleeHitSounds;
     private Sound orbSound;
     private Sound playerDeathSound;
+    private final Random random = new Random();
     private float sfxVolume = 0.5f;
 
     public SoundEffectManager() {
@@ -49,6 +53,17 @@ public class SoundEffectManager {
         } catch (Exception e) {
             System.err.println("Failed to load NPC hit sound effect");
             e.printStackTrace();
+        }
+
+        meleeHitSounds = new Sound[7];
+        for (int i = 0; i < meleeHitSounds.length; i++) {
+            String path = "sounds/slap" + (i + 1) + ".mp3";
+            try {
+                meleeHitSounds[i] = Gdx.audio.newSound(Gdx.files.internal(path));
+            } catch (Exception e) {
+                System.err.println("Failed to load melee hit sound effect: " + path);
+                e.printStackTrace();
+            }
         }
 
         try {
@@ -152,6 +167,38 @@ public class SoundEffectManager {
         }
     }
 
+    public void playMeleeHit(float sourceX, float sourceY, float listenerX, float listenerY, boolean isOwnHit) {
+        Sound slapSound = getRandomMeleeHitSound();
+        if (slapSound == null) {
+            return;
+        }
+
+        if (isOwnHit) {
+            slapSound.play(sfxVolume);
+            return;
+        }
+
+        float calculatedVolume = calculateVolumeFromDistance(sourceX, sourceY, listenerX, listenerY, 400f);
+        if (calculatedVolume > 0.01f) {
+            slapSound.play(calculatedVolume * sfxVolume);
+        }
+    }
+
+    private Sound getRandomMeleeHitSound() {
+        if (meleeHitSounds == null || meleeHitSounds.length == 0) {
+            return null;
+        }
+
+        int startIndex = random.nextInt(meleeHitSounds.length);
+        for (int offset = 0; offset < meleeHitSounds.length; offset++) {
+            Sound sound = meleeHitSounds[(startIndex + offset) % meleeHitSounds.length];
+            if (sound != null) {
+                return sound;
+            }
+        }
+        return null;
+    }
+
     /**
      * Play orb pickup sound
      * Always plays at full volume when collected by any player
@@ -226,6 +273,13 @@ public class SoundEffectManager {
         }
         if (npcHitSound != null) {
             npcHitSound.dispose();
+        }
+        if (meleeHitSounds != null) {
+            for (Sound sound : meleeHitSounds) {
+                if (sound != null) {
+                    sound.dispose();
+                }
+            }
         }
         if (orbSound != null) {
             orbSound.dispose();

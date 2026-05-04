@@ -247,6 +247,10 @@ public class AudioManager {
         soundEffectManager.playNpcHit(npcX, npcY, listenerX, listenerY);
     }
 
+    public void playMeleeHit(float sourceX, float sourceY, float listenerX, float listenerY, boolean isOwnHit) {
+        soundEffectManager.playMeleeHit(sourceX, sourceY, listenerX, listenerY, isOwnHit);
+    }
+
     public void playOrbPickup() {
         soundEffectManager.playOrbPickup();
     }

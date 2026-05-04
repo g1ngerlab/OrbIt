@@ -68,6 +68,7 @@ public class Network {
         kryo.register(ExtractionPointsData.class);
         kryo.register(ExtractionPointData.class);
         kryo.register(MeleeRequest.class);
+        kryo.register(PlayerMelee.class);
     }
 
     public static class Login {
@@ -433,6 +434,26 @@ public class Network {
     }
 
     /**
+     * Sent by the server to all clients when a player attacks without a weapon.
+     * Used to show the punch animation on other clients.
+     */
+    public static class PlayerMelee {
+        public int clientId;
+        public String playerName;
+        public float attackerX;
+        public float attackerY;
+
+        public PlayerMelee() {}
+
+        public PlayerMelee(int clientId, String playerName, float attackerX, float attackerY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.attackerX = attackerX;
+            this.attackerY = attackerY;
+        }
+    }
+
+    /**
      * Sent by the server to all clients when a player takes a step.
      * Used to play footstep sound effects on the client side.
      */
@@ -475,16 +496,25 @@ public class Network {
      * Used to play impact sound effects on the client side.
      */
     public static class NpcHitSound {
+        public static final int TYPE_NPC_MELEE = 0;
+        public static final int TYPE_PLAYER_MELEE = 1;
+
         public int npcId;
         public float npcX;
         public float npcY;
+        public int soundType = TYPE_NPC_MELEE;
 
         public NpcHitSound() {}
 
         public NpcHitSound(int npcId, float npcX, float npcY) {
+            this(npcId, npcX, npcY, TYPE_NPC_MELEE);
+        }
+
+        public NpcHitSound(int npcId, float npcX, float npcY, int soundType) {
             this.npcId = npcId;
             this.npcX = npcX;
             this.npcY = npcY;
+            this.soundType = soundType;
         }
     }
 

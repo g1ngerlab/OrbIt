@@ -18,6 +18,10 @@ public enum CharacterType {
         null,
         0,
         0f,
+        "player/punch_sprite.png",
+        4,
+        0.06f,
+        true,
         true,
         false,
         1f / 1.5f
@@ -39,6 +43,10 @@ public enum CharacterType {
         "pupu/attack_pupu.png",
         8,
         0.06f,
+        "pupu/pupu_punch.png",
+        4,
+        0.06f,
+        false,
         false,
         true,
         0.55f
@@ -60,6 +68,10 @@ public enum CharacterType {
         "bunny/attack_bunny.png",
         11,
         0.06f,
+        "bunny/ebani_punch.png",
+        5,
+        0.06f,
+        false,
         false,
         false,
         0.55f
@@ -81,6 +93,10 @@ public enum CharacterType {
     private final String attackTexturePath;
     private final int attackFrames;
     private final float attackFrameTime;
+    private final String punchTexturePath;
+    private final int punchFrames;
+    private final float punchFrameTime;
+    private final boolean punchFlipInverted;
     private final boolean baseFacingLeft;
     private final boolean attackFlipInverted;
     private final float drawScale;
@@ -101,6 +117,10 @@ public enum CharacterType {
                   String attackTexturePath,
                   int attackFrames,
                   float attackFrameTime,
+                  String punchTexturePath,
+                  int punchFrames,
+                  float punchFrameTime,
+                  boolean punchFlipInverted,
                   boolean baseFacingLeft,
                   boolean attackFlipInverted,
                   float drawScale) {
@@ -120,6 +140,10 @@ public enum CharacterType {
         this.attackTexturePath = attackTexturePath;
         this.attackFrames = attackFrames;
         this.attackFrameTime = attackFrameTime;
+        this.punchTexturePath = punchTexturePath;
+        this.punchFrames = punchFrames;
+        this.punchFrameTime = punchFrameTime;
+        this.punchFlipInverted = punchFlipInverted;
         this.baseFacingLeft = baseFacingLeft;
         this.attackFlipInverted = attackFlipInverted;
         this.drawScale = drawScale;
@@ -189,6 +213,22 @@ public enum CharacterType {
         return attackFrameTime;
     }
 
+    public String getPunchTexturePath() {
+        return punchTexturePath;
+    }
+
+    public int getPunchFrames() {
+        return punchFrames;
+    }
+
+    public float getPunchFrameTime() {
+        return punchFrameTime;
+    }
+
+    public boolean isPunchFlipInverted() {
+        return punchFlipInverted;
+    }
+
     public boolean isBaseFacingLeft() {
         return baseFacingLeft;
     }
@@ -203,6 +243,10 @@ public enum CharacterType {
 
     public boolean hasAttackAnimation() {
         return attackTexturePath != null && !attackTexturePath.isEmpty() && attackFrames > 0;
+    }
+
+    public boolean hasPunchAnimation() {
+        return punchTexturePath != null && !punchTexturePath.isEmpty() && punchFrames > 0;
     }
 
     public static CharacterType fromId(int id) {
