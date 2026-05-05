@@ -307,6 +307,13 @@ public class Lobby {
             return;
         }
 
+        broadcaster.broadcastToAll(new Network.PlayerMelee(
+            clientId,
+            attacker.getPlayerName(),
+            attacker.getX(),
+            attacker.getY()
+        ));
+
         float range = 50f;
         float damage = 3f;
 
@@ -324,6 +331,12 @@ public class Lobby {
                 System.out.println("[MELEE] HIT npc " + npc.getId());
 
                 npc.takeDamage(damage);
+                broadcastToAll(new Network.NpcHitSound(
+                    npc.getId(),
+                    npc.getPosition().x,
+                    npc.getPosition().y,
+                    Network.NpcHitSound.TYPE_PLAYER_MELEE
+                ));
                 if (npc.isDead()) {
                     onNpcKilledByBullet(npc);
                 }

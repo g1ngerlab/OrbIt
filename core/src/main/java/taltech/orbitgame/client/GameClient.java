@@ -43,6 +43,8 @@ public class GameClient {
         void onEntityDied(Network.EntityDied entityDied);
         /** Called when a player shoots. */
         void onPlayerShoot(Network.PlayerShoot playerShoot);
+        /** Called when a player attacks without a weapon. */
+        void onPlayerMelee(Network.PlayerMelee playerMelee);
         /** Called when a player takes a step. */
         void onPlayerStep(Network.PlayerStep playerStep);
         /** Called when an NPC dies. */
@@ -201,6 +203,12 @@ public class GameClient {
                     Network.PlayerShoot playerShoot = (Network.PlayerShoot) object;
                     if (gameListener != null) {
                         gameListener.onPlayerShoot(playerShoot);
+                    }
+                }
+                if (object instanceof Network.PlayerMelee) {
+                    Network.PlayerMelee playerMelee = (Network.PlayerMelee) object;
+                    if (gameListener != null) {
+                        gameListener.onPlayerMelee(playerMelee);
                     }
                 }
                 if (object instanceof Network.PlayerStep) {

@@ -382,6 +382,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         networkHandler.onPlayerShoot(playerShoot);
     }
 
+    @Override public void onPlayerMelee(Network.PlayerMelee playerMelee) {
+        networkHandler.onPlayerMelee(playerMelee);
+    }
+
     @Override public void onPlayerStep(Network.PlayerStep playerStep) {
         networkHandler.onPlayerStep(playerStep);
     }

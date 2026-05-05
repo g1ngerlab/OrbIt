@@ -23,17 +23,21 @@ public class RemotePlayer {
     private final Texture runDownTexture;
     private final Texture idleTexture;
     private final Texture attackTexture;
+    private final Texture punchTexture;
 
     private final Animation<TextureRegion> runSideAnimation;
     private final Animation<TextureRegion> runUpAnimation;
     private final Animation<TextureRegion> runDownAnimation;
     private final Animation<TextureRegion> idleAnimation;
     private final Animation<TextureRegion> attackAnimation;
+    private final Animation<TextureRegion> punchAnimation;
 
     private float runTime = 0f;
     private float idleTime = 0f;
     private float attackTime = 0f;
+    private float punchTime = 0f;
     private boolean attacking = false;
+    private boolean punching = false;
 
     private Direction direction = Direction.DOWN;
     private boolean moving = false;
@@ -53,6 +57,8 @@ public class RemotePlayer {
     private int idleFrameHeight;
     private int attackFrameWidth;
     private int attackFrameHeight;
+    private int punchFrameWidth;
+    private int punchFrameHeight;
 
     private int colliderWidth;
     private int colliderHeight;
@@ -90,6 +96,9 @@ public class RemotePlayer {
         attackTexture = this.characterType.hasAttackAnimation()
             ? new Texture(Gdx.files.internal(this.characterType.getAttackTexturePath()))
             : null;
+        punchTexture = this.characterType.hasPunchAnimation()
+            ? new Texture(Gdx.files.internal(this.characterType.getPunchTexturePath()))
+            : null;
 
         sideFrameWidth = runSideTexture.getWidth() / this.characterType.getRunSideFrames();
         sideFrameHeight = runSideTexture.getHeight();
@@ -102,6 +111,10 @@ public class RemotePlayer {
         if (attackTexture != null) {
             attackFrameWidth = attackTexture.getWidth() / this.characterType.getAttackFrames();
             attackFrameHeight = attackTexture.getHeight();
+        }
+        if (punchTexture != null) {
+            punchFrameWidth = punchTexture.getWidth() / this.characterType.getPunchFrames();
+            punchFrameHeight = punchTexture.getHeight();
         }
 
         colliderWidth = 32;
@@ -121,6 +134,12 @@ public class RemotePlayer {
         } else {
             attackAnimation = null;
         }
+        if (punchTexture != null) {
+            punchAnimation = createAnimation(punchTexture, punchFrameWidth, punchFrameHeight,
+                this.characterType.getPunchFrames(), this.characterType.getPunchFrameTime());
+        } else {
+            punchAnimation = null;
+        }
 
         font = FontManager.getPixelFont(12);
         font.setColor(Color.YELLOW);
@@ -139,6 +158,12 @@ public class RemotePlayer {
             attackTime += delta;
             if (attackAnimation != null && attackTime >= attackAnimation.getAnimationDuration()) {
                 attacking = false;
+            }
+        }
+        if (punching) {
+            punchTime += delta;
+            if (punchAnimation != null && punchTime >= punchAnimation.getAnimationDuration()) {
+                punching = false;
             }
         }
         if (moving) {
@@ -196,6 +221,9 @@ public class RemotePlayer {
         idleTexture.dispose();
         if (attackTexture != null) {
             attackTexture.dispose();
+        }
+        if (punchTexture != null) {
+            punchTexture.dispose();
         }
         font.dispose();
     }
@@ -299,7 +327,18 @@ public class RemotePlayer {
         attackTime = 0f;
     }
 
+    public void triggerPunch() {
+        if (punchAnimation == null) {
+            return;
+        }
+        punching = true;
+        punchTime = 0f;
+    }
+
     private Animation<TextureRegion> resolveAnimation() {
+        if (punching && punchAnimation != null) {
+            return punchAnimation;
+        }
         if (attacking && attackAnimation != null) {
             return attackAnimation;
         }
@@ -322,6 +361,9 @@ public class RemotePlayer {
         if (animation == attackAnimation) {
             return attackFrameWidth;
         }
+        if (animation == punchAnimation) {
+            return punchFrameWidth;
+        }
         if (animation == runUpAnimation) {
             return upFrameWidth;
         }
@@ -337,6 +379,9 @@ public class RemotePlayer {
     private int resolveFrameHeight(Animation<TextureRegion> animation) {
         if (animation == attackAnimation) {
             return attackFrameHeight;
+        }
+        if (animation == punchAnimation) {
+            return punchFrameHeight;
         }
         if (animation == runUpAnimation) {
             return upFrameHeight;
@@ -354,16 +399,22 @@ public class RemotePlayer {
         if (animation == attackAnimation) {
             return attackTime;
         }
+        if (animation == punchAnimation) {
+            return punchTime;
+        }
         return moving ? runTime : idleTime;
     }
 
     private boolean shouldFlipForDirection(Animation<TextureRegion> animation) {
-        if (animation != runSideAnimation && animation != attackAnimation) {
+        if (animation != runSideAnimation && animation != attackAnimation && animation != punchAnimation) {
             return false;
         }
-        if (animation == attackAnimation) {
+        if (animation == attackAnimation || animation == punchAnimation) {
             boolean aimRight = aimX >= getCenterX();
             boolean flip = aimRight ? characterType.isBaseFacingLeft() : !characterType.isBaseFacingLeft();
+            if (animation == punchAnimation) {
+                return characterType.isPunchFlipInverted() ? !flip : flip;
+            }
             return characterType.isAttackFlipInverted() ? !flip : flip;
         }
         if (direction == Direction.RIGHT) {

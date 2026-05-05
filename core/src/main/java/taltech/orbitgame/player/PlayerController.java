@@ -145,6 +145,9 @@ public class PlayerController {
             && !hasUsableWeaponEquipped()
             && isInLobby) {
 
+            if (player.getCharacterType().hasPunchAnimation()) {
+                player.triggerPunch();
+            }
             gameClient.sendMelee(localAimX, localAimY);
             shotCooldownTimer = SHOT_COOLDOWN;
         }
