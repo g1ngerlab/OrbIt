@@ -4,6 +4,13 @@ import com.badlogic.gdx.math.Vector2;
 import com.esotericsoftware.kryonet.Connection;
 import server.combat.BulletCombatSystem;
 import server.combat.NpcMeleeSystem;
+import server.lobby.LobbyBroadcaster;
+import server.lobby.LobbyInventoryManager;
+import server.lobby.LobbyItemDropManager;
+import server.lobby.LobbyPlayerManager;
+import server.lobby.LobbyStateManager;
+import server.lobby.LobbyTimerManager;
+import server.lobby.LobbyWorldManager;
 import server.model.LobbyPlayer;
 import server.model.PendingShot;
 import server.model.ServerBullet;
@@ -93,16 +100,14 @@ public class Lobby {
     private final LobbyBroadcaster broadcaster;
     private final LobbyItemDropManager itemDropManager;
     private final LobbyInventoryManager inventoryManager;
+    private final LobbyStateManager stateManager;
+    private final LobbyPlayerManager playerManager;
+    private final LobbyWorldManager worldManager;
+    private final LobbyTimerManager timerManager;
 
     private int nextBulletId;
     private int nextCorpseId;
     private int nextOrbId;
-    private long npcTick;
-    private long lobbyElapsedMs;
-    private long freezeDamageElapsedMs;
-    private boolean lobbyClosed;
-    /** Timestamp (System.currentTimeMillis) when lobby became empty, or 0 if not empty */
-    private long emptyTimestamp = 0;
 
     public Lobby(int lobbyId, String lobbyName) {
         this.lobbyId = lobbyId;
@@ -136,17 +141,17 @@ public class Lobby {
         this.nextBulletId = 1;
         this.nextCorpseId = 1;
         this.nextOrbId = 1;
-        this.lobbyElapsedMs = 0L;
-        this.freezeDamageElapsedMs = 0L;
-        this.lobbyClosed = false;
         int spawned = robotSpawner.spawnInitial(npcManager, collisionGrid, random);
         LOGGER.info(lobbyTag() + "Spawned robots: " + spawned);
-        this.npcTick = 0;
 
         // Initialize refactored components
         this.broadcaster = new LobbyBroadcaster(players);
-        this.itemDropManager = new LobbyItemDropManager(orbs, collisionGrid, random, nextOrbId);
+        this.itemDropManager = new LobbyItemDropManager(orbs, collisionGrid, random, 1);
         this.inventoryManager = new LobbyInventoryManager(players, playerInventories, itemDropManager);
+        this.stateManager = new LobbyStateManager(lobbyId);
+        this.playerManager = new LobbyPlayerManager(lobbyId, players, broadcaster, inventoryManager);
+        this.worldManager = new LobbyWorldManager(lobbyId, players, broadcaster);
+        this.timerManager = new LobbyTimerManager(lobbyId, players, broadcaster);
     }
 
     public void addPlayer(int clientId, String playerName, Connection connection) {
@@ -162,7 +167,7 @@ public class Lobby {
     }
 
     public void addPlayer(int clientId, String playerName, int characterId, Connection connection, List<Network.InventorySlotState> loadoutSlots) {
-        if (lobbyClosed) {
+        if (stateManager.isClosed()) {
             return;
         }
         LobbyPlayer player = createPlayer(clientId, playerName, characterId, connection);
@@ -173,24 +178,24 @@ public class Lobby {
         } else {
             inventoryManager.applyStartingLoadout(clientId, loadoutSlots);
         }
-        emptyTimestamp = 0;
+        stateManager.clearEmpty();
 
         LOGGER.info(lobbyTag() + "Player " + playerName + " joined. Total players: " + players.size());
 
         sendLobbySnapshotToNewPlayer(clientId, connection, player);
-        notifyOthersAboutNewPlayer(player);
+        playerManager.notifyNewPlayer(player);
         sendWorldSnapshotTo(connection);
     }
 
     public void removePlayer(int clientId) {
-        LobbyPlayer player = players.remove(clientId);
+        LobbyPlayer player = players.get(clientId);
         if (player != null) {
             playerInventories.remove(clientId);
             LOGGER.info(lobbyTag() + "Player " + player.getPlayerName() + " left. Total players: " + players.size());
 
-            if (players.isEmpty() && emptyTimestamp == 0) {
-                emptyTimestamp = System.currentTimeMillis();
-                closeLobby("empty");
+            if (players.isEmpty()) {
+                stateManager.markEmpty();
+                stateManager.closeLobby("empty");
             }
 
             Network.PlayerLeft left = new Network.PlayerLeft(clientId);
@@ -199,18 +204,7 @@ public class Lobby {
     }
 
     public void updatePlayerPosition(int clientId, float x, float y, boolean moving, float aimX, float aimY) {
-        LobbyPlayer player = players.get(clientId);
-        if (player != null) {
-            player.setPositionAndAim(x, y, aimX, aimY);
-
-            Network.PlayerPositionUpdate update = new Network.PlayerPositionUpdate(clientId, x, y, moving, aimX, aimY);
-            broadcaster.broadcastToOthers(clientId, update);
-
-            if (moving) {
-                Network.PlayerStep stepSound = new Network.PlayerStep(clientId, player.getPlayerName(), x, y);
-                broadcaster.broadcastToOthers(clientId, stepSound);
-            }
-        }
+        playerManager.updatePlayerPosition(clientId, x, y, moving, aimX, aimY);
     }
 
     public void queueShootRequest(int clientId, float targetX, float targetY) {
@@ -252,7 +246,7 @@ public class Lobby {
 
     public void updateNpcs(float deltaTime) {
         System.out.println("[LOOP] tick");
-        if (lobbyClosed) {
+        if (stateManager.isClosed()) {
             return;
         }
         List<Vector2> playerPositions = collectPlayerPositions();
@@ -270,30 +264,25 @@ public class Lobby {
         itemDropManager.updateOrbsPhysics(deltaTime);
         updateOrbPickups();
 
-        npcTick++;
+        worldManager.incrementNpcTick();
         broadcaster.broadcastToAll(createNpcStateUpdate());
         broadcaster.broadcastToAll(createBulletStateUpdate());
         broadcaster.broadcastToAll(createOrbStateUpdate());
     }
 
     public void updateLobbyTimer(float deltaTime) {
-        if (lobbyClosed) {
+        if (stateManager.isClosed()) {
             return;
         }
 
-        lobbyElapsedMs = Math.min(LOBBY_DURATION_MS, lobbyElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
-        long remainingMs = getRemainingLobbyTimeMs();
-        boolean freezePhase = remainingMs <= FREEZE_PHASE_START_MS;
+        List<LobbyPlayer> killedPlayers = timerManager.updateTimer(deltaTime);
 
-        if (freezePhase && freezeDamageElapsedMs < FREEZE_DAMAGE_DURATION_MS && !players.isEmpty()) {
-            applyFreezeDamage(deltaTime);
-            freezeDamageElapsedMs = Math.min(FREEZE_DAMAGE_DURATION_MS, freezeDamageElapsedMs + (long) (Math.max(0f, deltaTime) * 1000f));
+        for (LobbyPlayer killedPlayer : killedPlayers) {
+            onPlayerKilled(killedPlayer, "freeze");
         }
 
-        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) remainingMs, freezePhase));
-
-        if (remainingMs <= 0L) {
-            closeLobby("timer_expired");
+        if (timerManager.isTimeExpired()) {
+            stateManager.closeLobby("timer_expired");
         }
     }
 
@@ -331,7 +320,7 @@ public class Lobby {
                 System.out.println("[MELEE] HIT npc " + npc.getId());
 
                 npc.takeDamage(damage);
-                broadcastToAll(new Network.NpcHitSound(
+                broadcaster.broadcastToAll(new Network.NpcHitSound(
                     npc.getId(),
                     npc.getPosition().x,
                     npc.getPosition().y,
@@ -351,52 +340,22 @@ public class Lobby {
     }
 
     public void forceAdvanceToFinalMinuteForTesting() {
-        if (lobbyClosed) {
+        if (stateManager.isClosed()) {
             return;
         }
-        lobbyElapsedMs = Math.max(lobbyElapsedMs, LOBBY_DURATION_MS - FREEZE_PHASE_START_MS);
-        freezeDamageElapsedMs = 0L;
-        broadcaster.broadcastToAll(new Network.LobbyTimerState(lobbyId, (int) getRemainingLobbyTimeMs(), true));
+        timerManager.forceAdvanceToFinalMinute();
     }
 
     public boolean isClosed() {
-        return lobbyClosed;
+        return stateManager.isClosed();
     }
 
     public long getRemainingLobbyTimeMs() {
-        return Math.max(0L, LOBBY_DURATION_MS - lobbyElapsedMs);
-    }
-
-    private void applyFreezeDamage(float deltaTime) {
-        if (players.isEmpty()) {
-            return;
-        }
-
-        float damageFactor = Math.max(0f, deltaTime / (FREEZE_DAMAGE_DURATION_MS / 1000f));
-        List<LobbyPlayer> killedPlayers = new ArrayList<>();
-
-        for (LobbyPlayer player : new ArrayList<>(players.values())) {
-            if (player.isDead()) {
-                continue;
-            }
-            float damage = player.getMaxHealth() * damageFactor;
-            player.takeDamage(damage);
-            broadcastPlayerHealth(player);
-            if (player.isDead()) {
-                killedPlayers.add(player);
-            }
-        }
-
-        for (LobbyPlayer killedPlayer : killedPlayers) {
-            onPlayerKilled(killedPlayer, "freeze");
-        }
+        return timerManager.getRemainingTimeMs();
     }
 
     private void closeLobby(String reason) {
-        if (lobbyClosed) {
-            return;
-        }
-        lobbyClosed = true;
+        stateManager.closeLobby(reason);
         broadcaster.broadcastToAll(new Network.LobbyClosed(lobbyId, reason));
     }
 
@@ -420,27 +379,26 @@ public class Lobby {
      * Returns true if the lobby is empty and has been empty for longer than the given duration.
      */
     public boolean isEmptyForLongerThan(long durationMs) {
-        return players.isEmpty() && emptyTimestamp > 0
-                && (System.currentTimeMillis() - emptyTimestamp) > durationMs;
+        return stateManager.isEmptyForLongerThan(durationMs);
     }
 
 
     private Network.NpcStateUpdate createNpcStateUpdate() {
         Network.NpcStateUpdate update = new Network.NpcStateUpdate();
         update.lobbyId = lobbyId;
-        update.tick = npcTick;
+        update.tick = worldManager.getNpcTick();
         update.npcs.addAll(npcManager.createStateSnapshot());
         return update;
     }
 
     private Network.BulletStateUpdate createBulletStateUpdate() {
-        return bulletCombatSystem.createSnapshot(lobbyId, npcTick, bullets);
+        return bulletCombatSystem.createSnapshot(lobbyId, worldManager.getNpcTick(), bullets);
     }
 
     private Network.CorpseStateUpdate createCorpseStateUpdate() {
         Network.CorpseStateUpdate update = new Network.CorpseStateUpdate();
         update.lobbyId = lobbyId;
-        update.tick = npcTick;
+        update.tick = worldManager.getNpcTick();
         update.corpses.addAll(corpses.values());
         return update;
     }
@@ -448,7 +406,7 @@ public class Lobby {
     private Network.OrbStateUpdate createOrbStateUpdate() {
         Network.OrbStateUpdate update = new Network.OrbStateUpdate();
         update.lobbyId = lobbyId;
-        update.tick = npcTick;
+        update.tick = worldManager.getNpcTick();
 
         for (ServerOrb orb : orbs.values()) {
             Network.OrbState state = new Network.OrbState();
@@ -473,7 +431,7 @@ public class Lobby {
         corpse.height = PLAYER_HEIGHT * PLAYER_CORPSE_SCALE;
         corpse.rotationDeg = 90f;
         corpses.put(corpse.corpseId, corpse);
-        broadcastToAll(createCorpseStateUpdate());
+        broadcaster.broadcastToAll(createCorpseStateUpdate());
     }
 
     private void addRobotButlerCorpse(Npc npc) {
@@ -486,21 +444,26 @@ public class Lobby {
         corpse.height = npc.getSize();
         corpse.rotationDeg = 90f;
         corpses.put(corpse.corpseId, corpse);
-        broadcastToAll(createCorpseStateUpdate());
+        broadcaster.broadcastToAll(createCorpseStateUpdate());
     }
 
-    private void broadcastToAll(Object message) {
+    private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
+        Network.LobbyState lobbyState = new Network.LobbyState();
         for (LobbyPlayer player : players.values()) {
-            player.getConnection().sendTCP(message);
-        }
-    }
-
-    private void broadcastToOthers(int excludeClientId, Object message) {
-        for (LobbyPlayer player : players.values()) {
-            if (player.getClientId() != excludeClientId) {
-                player.getConnection().sendTCP(message);
+            if (player.getClientId() != clientId) {
+                lobbyState.players.add(new Network.PlayerInfo(
+                    player.getClientId(),
+                    player.getPlayerName(),
+                    player.getX(),
+                    player.getY(),
+                    player.getAimX(),
+                    player.getAimY(),
+                    player.getCharacterId()
+                ));
             }
         }
+        connection.sendTCP(lobbyState);
+        connection.sendTCP(new Network.LobbyJoinConfirmed(lobbyId, joiningPlayer.getX(), joiningPlayer.getY()));
     }
 
     private LobbyPlayer createPlayer(int clientId, String playerName, Connection connection) {
@@ -587,35 +550,6 @@ public class Lobby {
         return value;
     }
 
-    private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
-        Network.LobbyState lobbyState = new Network.LobbyState();
-        for (LobbyPlayer player : players.values()) {
-            if (player.getClientId() != clientId) {
-                lobbyState.players.add(new Network.PlayerInfo(
-                    player.getClientId(),
-                    player.getPlayerName(),
-                    player.getX(),
-                    player.getY(),
-                    player.getAimX(),
-                    player.getAimY(),
-                    player.getCharacterId()
-                ));
-            }
-        }
-        connection.sendTCP(lobbyState);
-        connection.sendTCP(new Network.LobbyJoinConfirmed(lobbyId, joiningPlayer.getX(), joiningPlayer.getY()));
-    }
-
-    private void notifyOthersAboutNewPlayer(LobbyPlayer player) {
-        Network.PlayerJoined joined = new Network.PlayerJoined(
-            player.getClientId(),
-            player.getPlayerName(),
-            player.getX(),
-            player.getY(),
-            player.getCharacterId()
-        );
-        broadcastToOthers(player.getClientId(), joined);
-    }
 
     private void sendWorldSnapshotTo(Connection connection) {
         connection.sendTCP(createNpcStateUpdate());
@@ -707,7 +641,7 @@ public class Lobby {
     }
 
     private void broadcastPlayerHealth(LobbyPlayer player) {
-        broadcastToAll(new Network.PlayerHealthUpdate(
+        broadcaster.broadcastToAll(new Network.PlayerHealthUpdate(
             player.getClientId(),
             player.getCurrentHealth(),
             player.getMaxHealth()
@@ -731,7 +665,7 @@ public class Lobby {
         for (Npc npc : npcManager.getNpcs()) {
             if (npc.isChasing() && Math.hypot(npc.getPosition().x - player.getX(), npc.getPosition().y - player.getY()) < 100f) {
                 Network.NpcHitSound hitSound = new Network.NpcHitSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
-                broadcastToAll(hitSound);
+                broadcaster.broadcastToAll(hitSound);
                 break; // Only one NPC hit at a time
             }
         }
@@ -763,7 +697,7 @@ public class Lobby {
     private void broadcastNpcAttack() {
         for (Npc npc : npcManager.getNpcs()) {
             if (npc.isChasing()) {
-                broadcastToAll(new Network.NpcAttack(npc.getId()));
+                broadcaster.broadcastToAll(new Network.NpcAttack(npc.getId()));
             }
         }
     }
@@ -772,11 +706,11 @@ public class Lobby {
         LOGGER.info(lobbyTag() + "NPC #" + npc.getId() + " killed!");
         addRobotButlerCorpse(npc);
         itemDropManager.spawnOrbsAroundNpc(npc);
-        broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
+        broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
 
         // Send death sound to all clients for audio playback
         Network.NpcDeathSound deathSound = new Network.NpcDeathSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
-        broadcastToAll(deathSound);
+        broadcaster.broadcastToAll(deathSound);
     }
 
     private void spawnOrbsAroundNpc(Npc npc) {
