@@ -34,14 +34,6 @@ dependencies {
   implementation "com.badlogicgames.gdx:gdx-freetype-platform:$gdxVersion:natives-desktop"
   implementation project(':core')
 
-  def javaFxVersion = '17.0.10'
-  def javaFxOs = System.properties['os.name'].toLowerCase(Locale.ROOT)
-  def javaFxArch = System.properties['os.arch'].toLowerCase(Locale.ROOT)
-  def javaFxPlatform = javaFxOs.contains('win') ? 'win' : javaFxOs.contains('mac') ? (javaFxArch.contains('aarch64') || javaFxArch.contains('arm64') ? 'mac-aarch64' : 'mac') : 'linux'
-  implementation "org.openjfx:javafx-base:$javaFxVersion:$javaFxPlatform"
-  implementation "org.openjfx:javafx-graphics:$javaFxVersion:$javaFxPlatform"
-  implementation "org.openjfx:javafx-media:$javaFxVersion:$javaFxPlatform"
-
   if(enableGraalNative == 'true') {
     implementation "io.github.berstanio:gdx-svmhelper-backend-lwjgl3:$graalHelperVersion"
 
