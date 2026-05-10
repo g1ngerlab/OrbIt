@@ -473,8 +473,29 @@ public class ChooseLoadoutScreen implements Screen {
         }
         startingMatch = true;
         loadoutSelection.ensureStarterWeapon();
-        statusLabel.setText("Starting match...");
+        statusLabel.setText("Playing intro...");
+        AudioManager.getInstance().stopCurrentMusic();
 
+        Thread introThread = new Thread(() -> {
+            try {
+                ((Main) game).playIntroVideoBeforeMatch();
+                Gdx.app.postRunnable(this::startMatchAfterIntro);
+            } catch (Exception e) {
+                Gdx.app.postRunnable(() -> {
+                    startingMatch = false;
+                    statusLabel.setText("Failed to play intro: " + e.getMessage());
+                });
+            }
+        }, "intro-video-before-match");
+        introThread.setDaemon(true);
+        introThread.start();
+    }
+
+    private void startMatchAfterIntro() {
+        if (disposed) {
+            return;
+        }
+        statusLabel.setText("Starting match...");
         try {
             GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername(), loadoutSelection.toNetworkSlots());
             game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));
