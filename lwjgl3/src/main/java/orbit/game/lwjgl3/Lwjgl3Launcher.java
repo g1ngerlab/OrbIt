@@ -8,12 +8,12 @@ import taltech.orbitgame.Main;
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return;
-        // IntroVideoPlayer.playBeforeGameLaunch(); // TODO: Implement intro video player
+        IntroVideoPlayer.playBeforeGameLaunch();
         createApplication();
     }
 
     private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new Main(), getDefaultConfiguration());
+        return new Lwjgl3Application(new Main(IntroVideoPlayer::playBeforeGameLaunch), getDefaultConfiguration());
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {

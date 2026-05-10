@@ -22,6 +22,7 @@ final class IntroVideoPlayer {
     private static final long MAX_WAIT_SECONDS = 60L;
     private static final int WINDOW_WIDTH = 640;
     private static final int WINDOW_HEIGHT = 480;
+    private static final AtomicBoolean played = new AtomicBoolean(false);
     private static volatile int lastWindowX = -1;
     private static volatile int lastWindowY = -1;
 
@@ -29,20 +30,27 @@ final class IntroVideoPlayer {
     }
 
     static void playBeforeGameLaunch() {
-        File introFile = findIntroVideo();
-        if (introFile == null) {
+        if (!played.compareAndSet(false, true)) {
             return;
         }
 
+        File introFile = findIntroVideo();
+        if (introFile == null) {
+            System.err.println("[IntroVideo] Intro video not found");
+            return;
+        }
+        System.out.println("[IntroVideo] Playing intro: " + introFile.getAbsolutePath());
+
         CountDownLatch finished = new CountDownLatch(1);
-        AtomicBoolean started = new AtomicBoolean(false);
+        AtomicBoolean scheduled = new AtomicBoolean(false);
 
         try {
+            scheduled.set(true);
             Platform.startup(() -> {
-                started.set(true);
                 playOnFxThread(introFile, finished);
             });
         } catch (IllegalStateException alreadyStarted) {
+            scheduled.set(true);
             Platform.runLater(() -> playOnFxThread(introFile, finished));
         } catch (Throwable throwable) {
             System.err.println("[IntroVideo] JavaFX is not available: " + throwable.getMessage());
@@ -50,7 +58,7 @@ final class IntroVideoPlayer {
         }
 
         try {
-            if (started.get()) {
+            if (scheduled.get()) {
                 finished.await(MAX_WAIT_SECONDS, TimeUnit.SECONDS);
             }
         } catch (InterruptedException interruptedException) {
@@ -100,6 +108,7 @@ final class IntroVideoPlayer {
             stage.setOnCloseRequest(event -> finish.run());
             stage.setWidth(WINDOW_WIDTH);
             stage.setHeight(WINDOW_HEIGHT);
+            stage.setAlwaysOnTop(true);
             stage.centerOnScreen();
 
             player.setOnEndOfMedia(finish);
@@ -113,6 +122,8 @@ final class IntroVideoPlayer {
             });
 
             stage.show();
+            stage.toFront();
+            stage.requestFocus();
             player.play();
         } catch (Throwable throwable) {
             System.err.println("[IntroVideo] Intro skipped: " + throwable.getMessage());
@@ -121,11 +132,25 @@ final class IntroVideoPlayer {
     }
 
     private static File findIntroVideo() {
-        File dir = new File(INTRO_DIR);
+        File[] dirs = {
+            new File(INTRO_DIR),
+            new File("introvideo")
+        };
+
+        for (File dir : dirs) {
+            File introFile = findFirstMp4(dir);
+            if (introFile != null) {
+                return introFile;
+            }
+        }
+
+        return null;
+    }
+
+    private static File findFirstMp4(File dir) {
         if (!dir.isDirectory()) {
             return null;
         }
-
         File[] files = dir.listFiles((folder, name) -> name.toLowerCase().endsWith(".mp4"));
         if (files == null || files.length == 0) {
             return null;
