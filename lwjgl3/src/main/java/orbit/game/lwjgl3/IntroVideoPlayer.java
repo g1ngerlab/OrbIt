@@ -11,7 +11,6 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
-import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,8 +46,7 @@ final class IntroVideoPlayer {
 
         System.out.println("[IntroVideo] Playing intro: " + introFile.getAbsolutePath());
         if (!playWithJavaFx(introFile)) {
-            System.err.println("[IntroVideo] JavaFX playback failed, opening intro with the system video player");
-            openWithSystemPlayer(introFile);
+            System.err.println("[IntroVideo] JavaFX playback failed; intro skipped");
         }
     }
 
@@ -140,19 +138,6 @@ final class IntroVideoPlayer {
             failed.set(true);
             System.err.println("[IntroVideo] Intro skipped: " + throwable.getMessage());
             finish.run();
-        }
-    }
-
-    private static void openWithSystemPlayer(File introFile) {
-        try {
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                Desktop.getDesktop().open(introFile);
-            } else {
-                new ProcessBuilder("xdg-open", introFile.getAbsolutePath()).start();
-            }
-            Thread.sleep(8000L);
-        } catch (Throwable throwable) {
-            System.err.println("[IntroVideo] System video player fallback failed: " + throwable.getMessage());
         }
     }
 
