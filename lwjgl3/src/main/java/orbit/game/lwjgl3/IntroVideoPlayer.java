@@ -13,12 +13,18 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class IntroVideoPlayer {
     private static final String INTRO_DIR = "assets/introvideo";
+    private static final String INTRO_RESOURCE = "introvideo/intro.mp4";
     private static final long MAX_WAIT_SECONDS = 60L;
     private static final int WINDOW_WIDTH = 640;
     private static final int WINDOW_HEIGHT = 480;
@@ -144,7 +150,7 @@ final class IntroVideoPlayer {
             }
         }
 
-        return null;
+        return extractBundledIntroVideo();
     }
 
     private static File findFirstMp4(File dir) {
@@ -158,6 +164,24 @@ final class IntroVideoPlayer {
 
         java.util.Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
         return files[0];
+    }
+
+    private static File extractBundledIntroVideo() {
+        ClassLoader classLoader = IntroVideoPlayer.class.getClassLoader();
+        try (InputStream inputStream = classLoader.getResourceAsStream(INTRO_RESOURCE)) {
+            if (inputStream == null) {
+                return null;
+            }
+
+            Path tempFile = Files.createTempFile("orbit-intro-", ".mp4");
+            Files.copy(inputStream, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            File file = tempFile.toFile();
+            file.deleteOnExit();
+            return file;
+        } catch (IOException exception) {
+            System.err.println("[IntroVideo] Failed to extract bundled intro: " + exception.getMessage());
+            return null;
+        }
     }
 
     static int getLastWindowX() {
