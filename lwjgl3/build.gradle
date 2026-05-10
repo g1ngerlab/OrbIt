@@ -36,7 +36,8 @@ dependencies {
 
   def javaFxVersion = '17.0.10'
   def javaFxOs = System.properties['os.name'].toLowerCase(Locale.ROOT)
-  def javaFxPlatform = javaFxOs.contains('win') ? 'win' : javaFxOs.contains('mac') ? 'mac' : 'linux'
+  def javaFxArch = System.properties['os.arch'].toLowerCase(Locale.ROOT)
+  def javaFxPlatform = javaFxOs.contains('win') ? 'win' : javaFxOs.contains('mac') ? (javaFxArch.contains('aarch64') || javaFxArch.contains('arm64') ? 'mac-aarch64' : 'mac') : 'linux'
   implementation "org.openjfx:javafx-base:$javaFxVersion:$javaFxPlatform"
   implementation "org.openjfx:javafx-graphics:$javaFxVersion:$javaFxPlatform"
   implementation "org.openjfx:javafx-media:$javaFxVersion:$javaFxPlatform"

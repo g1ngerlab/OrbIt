@@ -17,7 +17,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.time.LocalDateTime;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class IntroVideoPlayer {
     private static final String INTRO_DIR = "assets/introvideo";
     private static final String INTRO_RESOURCE = "introvideo/intro.mp4";
+    private static final Path LOG_FILE = Paths.get("intro-video.log");
     private static final long MAX_WAIT_SECONDS = 60L;
     private static final int WINDOW_WIDTH = 640;
     private static final int WINDOW_HEIGHT = 480;
@@ -42,10 +46,10 @@ final class IntroVideoPlayer {
 
         File introFile = findIntroVideo();
         if (introFile == null) {
-            System.err.println("[IntroVideo] Intro video not found");
+            log("Intro video not found");
             return;
         }
-        System.out.println("[IntroVideo] Playing intro: " + introFile.getAbsolutePath());
+        log("Playing intro: " + introFile.getAbsolutePath());
 
         CountDownLatch finished = new CountDownLatch(1);
         AtomicBoolean scheduled = new AtomicBoolean(false);
@@ -59,7 +63,7 @@ final class IntroVideoPlayer {
             scheduled.set(true);
             Platform.runLater(() -> playOnFxThread(introFile, finished));
         } catch (Throwable throwable) {
-            System.err.println("[IntroVideo] JavaFX is not available: " + throwable.getMessage());
+            log("JavaFX is not available", throwable);
             return;
         }
 
@@ -69,6 +73,7 @@ final class IntroVideoPlayer {
             }
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
+            log("Intro interrupted", interruptedException);
         }
     }
 
@@ -119,11 +124,11 @@ final class IntroVideoPlayer {
 
             player.setOnEndOfMedia(finish);
             player.setOnError(() -> {
-                System.err.println("[IntroVideo] Failed to play intro: " + player.getError());
+                log("Failed to play intro", player.getError());
                 finish.run();
             });
             media.setOnError(() -> {
-                System.err.println("[IntroVideo] Failed to load intro: " + media.getError());
+                log("Failed to load intro", media.getError());
                 finish.run();
             });
 
@@ -132,7 +137,7 @@ final class IntroVideoPlayer {
             stage.requestFocus();
             player.play();
         } catch (Throwable throwable) {
-            System.err.println("[IntroVideo] Intro skipped: " + throwable.getMessage());
+            log("Intro skipped", throwable);
             finish.run();
         }
     }
@@ -144,6 +149,7 @@ final class IntroVideoPlayer {
         };
 
         for (File dir : dirs) {
+            log("Checking intro dir: " + dir.getAbsolutePath());
             File introFile = findFirstMp4(dir);
             if (introFile != null) {
                 return introFile;
@@ -179,9 +185,24 @@ final class IntroVideoPlayer {
             file.deleteOnExit();
             return file;
         } catch (IOException exception) {
-            System.err.println("[IntroVideo] Failed to extract bundled intro: " + exception.getMessage());
+            log("Failed to extract bundled intro", exception);
             return null;
         }
+    }
+
+    private static void log(String message) {
+        String line = "[IntroVideo] " + message;
+        System.out.println(line);
+        try {
+            Files.write(LOG_FILE, (LocalDateTime.now() + " " + line + System.lineSeparator()).getBytes("UTF-8"),
+                StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (IOException ignored) {
+            // Console logging above is enough if the log file cannot be written.
+        }
+    }
+
+    private static void log(String message, Throwable throwable) {
+        log(message + ": " + throwable);
     }
 
     static int getLastWindowX() {
