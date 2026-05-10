@@ -10,24 +10,8 @@ import javafx.scene.media.MediaView;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import org.jcodec.api.FrameGrab;
-import org.jcodec.common.io.NIOUtils;
-import org.jcodec.common.io.SeekableByteChannel;
-import org.jcodec.common.model.Picture;
-import org.jcodec.scale.AWTUtil;
 
-import javax.swing.ImageIcon;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.image.BufferedImage;
+import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,8 +47,8 @@ final class IntroVideoPlayer {
 
         System.out.println("[IntroVideo] Playing intro: " + introFile.getAbsolutePath());
         if (!playWithJavaFx(introFile)) {
-            System.err.println("[IntroVideo] JavaFX playback failed, trying JCodec fallback");
-            playWithJCodec(introFile);
+            System.err.println("[IntroVideo] JavaFX playback failed, opening intro with the system video player");
+            openWithSystemPlayer(introFile);
         }
     }
 
@@ -159,78 +143,16 @@ final class IntroVideoPlayer {
         }
     }
 
-    private static void playWithJCodec(File introFile) {
-        AtomicBoolean stop = new AtomicBoolean(false);
-        CountDownLatch windowReady = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        JLabel label = new JLabel("", SwingConstants.CENTER);
-
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("orbit");
-            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            frame.setSize(new Dimension(WINDOW_WIDTH, WINDOW_HEIGHT));
-            frame.setLocationRelativeTo(null);
-            frame.getContentPane().setBackground(java.awt.Color.BLACK);
-            frame.getContentPane().setLayout(new BorderLayout());
-            frame.getContentPane().add(label, BorderLayout.CENTER);
-            frame.addKeyListener(new KeyAdapter() {
-                @Override
-                public void keyPressed(KeyEvent event) {
-                    stop.set(true);
-                    frame.dispose();
-                }
-            });
-            frame.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent event) {
-                    stop.set(true);
-                    frame.dispose();
-                }
-            });
-            frame.addWindowListener(new java.awt.event.WindowAdapter() {
-                @Override
-                public void windowClosed(java.awt.event.WindowEvent event) {
-                    stop.set(true);
-                    closed.countDown();
-                }
-            });
-            frame.setVisible(true);
-            windowReady.countDown();
-        });
-
+    private static void openWithSystemPlayer(File introFile) {
         try {
-            windowReady.await(5, TimeUnit.SECONDS);
-            try (SeekableByteChannel channel = NIOUtils.readableChannel(introFile)) {
-                FrameGrab grab = FrameGrab.createFrameGrab(channel);
-                long frameDelayMs = 33L;
-                long nextFrameAt = System.currentTimeMillis();
-                Picture picture;
-                while (!stop.get() && (picture = grab.getNativeFrame()) != null) {
-                    BufferedImage image = AWTUtil.toBufferedImage(picture);
-                    SwingUtilities.invokeLater(() -> label.setIcon(new ImageIcon(image)));
-
-                    nextFrameAt += frameDelayMs;
-                    long sleepMs = nextFrameAt - System.currentTimeMillis();
-                    if (sleepMs > 0) {
-                        Thread.sleep(sleepMs);
-                    }
-                }
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                Desktop.getDesktop().open(introFile);
+            } else {
+                new ProcessBuilder("xdg-open", introFile.getAbsolutePath()).start();
             }
+            Thread.sleep(8000L);
         } catch (Throwable throwable) {
-            System.err.println("[IntroVideo] JCodec fallback failed: " + throwable.getMessage());
-        } finally {
-            stop.set(true);
-            SwingUtilities.invokeLater(() -> {
-                java.awt.Window window = SwingUtilities.getWindowAncestor(label);
-                if (window != null) {
-                    window.dispose();
-                }
-            });
-            try {
-                closed.await(1, TimeUnit.SECONDS);
-            } catch (InterruptedException interruptedException) {
-                Thread.currentThread().interrupt();
-            }
+            System.err.println("[IntroVideo] System video player fallback failed: " + throwable.getMessage());
         }
     }
 
