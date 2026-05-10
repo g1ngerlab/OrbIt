@@ -8,12 +8,11 @@ import taltech.orbitgame.Main;
 public class Lwjgl3Launcher {
     public static void main(String[] args) {
         if (StartupHelper.startNewJvmIfRequired()) return;
-        IntroVideoPlayer.playBeforeGameLaunch();
         createApplication();
     }
 
     private static Lwjgl3Application createApplication() {
-        return new Lwjgl3Application(new Main(IntroVideoPlayer::playBeforeGameLaunch), getDefaultConfiguration());
+        return new Lwjgl3Application(new Main(), getDefaultConfiguration());
     }
 
     private static Lwjgl3ApplicationConfiguration getDefaultConfiguration() {
@@ -30,10 +29,6 @@ public class Lwjgl3Launcher {
         //// You may also need to configure GPU drivers to fully disable Vsync; this can cause screen tearing.
 
         configuration.setWindowedMode(640, 480);
-        // TODO: Implement IntroVideoPlayer to restore window position
-        // if (IntroVideoPlayer.getLastWindowX() >= 0 && IntroVideoPlayer.getLastWindowY() >= 0) {
-        //     configuration.setWindowPosition(IntroVideoPlayer.getLastWindowX(), IntroVideoPlayer.getLastWindowY());
-        // }
         //// You can change these files; they are in lwjgl3/src/main/resources/ .
         //// They can also be loaded from the root of assets/ .
         // Commented out because icon files don't exist yet

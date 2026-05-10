@@ -475,20 +475,7 @@ public class ChooseLoadoutScreen implements Screen {
         loadoutSelection.ensureStarterWeapon();
         statusLabel.setText("Playing intro...");
         AudioManager.getInstance().stopCurrentMusic();
-
-        Thread introThread = new Thread(() -> {
-            try {
-                ((Main) game).playIntroVideoBeforeMatch();
-                Gdx.app.postRunnable(this::startMatchAfterIntro);
-            } catch (Exception e) {
-                Gdx.app.postRunnable(() -> {
-                    startingMatch = false;
-                    statusLabel.setText("Failed to play intro: " + e.getMessage());
-                });
-            }
-        }, "intro-video-before-match");
-        introThread.setDaemon(true);
-        introThread.start();
+        ((Main) game).playIntroThen(this::startMatchAfterIntro);
     }
 
     private void startMatchAfterIntro() {
