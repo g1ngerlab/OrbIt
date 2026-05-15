@@ -19,7 +19,7 @@ public class BulletCombatSystem {
     public interface Callbacks {
         void onPlayerDamaged(LobbyPlayer player);
         void onPlayerKilled(LobbyPlayer player, int killerClientId);
-        void onNpcKilled(Npc npc);
+        void onNpcKilled(Npc npc, int killerClientId);
     }
 
     private final float playerWidth;
@@ -182,7 +182,7 @@ public class BulletCombatSystem {
             if (hit) {
                 npc.takeDamage(bulletDamage);
                 if (npc.isDead()) {
-                    callbacks.onNpcKilled(npc);
+                    callbacks.onNpcKilled(npc, bullet.getOwnerClientId());
                 }
                 return true;
             }
@@ -190,4 +190,3 @@ public class BulletCombatSystem {
         return false;
     }
 }
-

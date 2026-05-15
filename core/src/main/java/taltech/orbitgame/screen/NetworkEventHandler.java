@@ -7,6 +7,7 @@ import taltech.orbitgame.inventory.InventoryFeature;
 import taltech.orbitgame.item.ItemKind;
 import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.NpcManager;
+import taltech.orbitgame.ui.KillCounterHud;
 import taltech.orbitgame.ui.KillNotificationManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
@@ -23,6 +24,7 @@ public class NetworkEventHandler {
     private final NpcManager npcManager;
     private final InventoryFeature inventoryFeature;
     private final KillNotificationManager killNotifications;
+    private final KillCounterHud killCounterHud;
 
     public NetworkEventHandler(
             GameClient gameClient,
@@ -30,13 +32,15 @@ public class NetworkEventHandler {
             Player localPlayer,
             NpcManager npcManager,
             InventoryFeature inventoryFeature,
-            KillNotificationManager killNotifications) {
+            KillNotificationManager killNotifications,
+            KillCounterHud killCounterHud) {
         this.gameClient = gameClient;
         this.gameState = gameState;
         this.localPlayer = localPlayer;
         this.npcManager = npcManager;
         this.inventoryFeature = inventoryFeature;
         this.killNotifications = killNotifications;
+        this.killCounterHud = killCounterHud;
     }
 
     public void onPlayerJoined(int clientId, String playerName, float x, float y, int characterId) {
@@ -79,10 +83,12 @@ public class NetworkEventHandler {
 
     public void onEntityDied(Network.EntityDied entityDied, GameScreen.DeathCallback deathCallback) {
         Gdx.app.postRunnable(() -> {
+            int myId = gameClient.getClientId();
             if (entityDied.entityType == Network.EntityDied.TYPE_NPC) {
-                // NPC died
+                if (entityDied.killerId == myId && killCounterHud != null) {
+                    killCounterHud.onNpcKilled(entityDied.entityId);
+                }
             } else if (entityDied.entityType == Network.EntityDied.TYPE_PLAYER) {
-                int myId = gameClient.getClientId();
                 if (entityDied.entityId == myId) {
                     // Local player died - get killer name
                     String killerName = null;
@@ -108,6 +114,9 @@ public class NetworkEventHandler {
                     if (entityDied.killerId == myId) {
                         System.out.println("[NetworkEventHandler] I killed someone! Adding kill. Total kills: " + (localPlayer.getKillCount() + 1));
                         localPlayer.addKill();
+                        if (killCounterHud != null) {
+                            killCounterHud.onPlayerKilled(entityDied.entityId);
+                        }
                     } else if (entityDied.killerId >= 0) {
                         System.out.println("[NetworkEventHandler] Someone else killed this player. killerId=" + entityDied.killerId);
                     }

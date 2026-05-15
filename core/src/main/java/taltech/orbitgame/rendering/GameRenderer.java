@@ -466,4 +466,8 @@ public class GameRenderer {
         return batch;
     }
 
+    public BitmapFont getHudFont() {
+        return hudFont;
+    }
+
 }
