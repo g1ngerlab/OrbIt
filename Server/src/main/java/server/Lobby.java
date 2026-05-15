@@ -24,6 +24,7 @@ import taltech.orbitgame.network.Network;
 import taltech.orbitgame.npc.Npc;
 import taltech.orbitgame.npc.NpcManager;
 import taltech.orbitgame.world.MapCollisionGrid;
+import taltech.orbitgame.npc.RobotBoss;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -78,6 +79,10 @@ public class Lobby {
     private static final long LOBBY_DURATION_MS = 10L * 60L * 1000L;
     private static final long FREEZE_PHASE_START_MS = 60L * 1000L;
     private static final long FREEZE_DAMAGE_DURATION_MS = 10L * 1000L;
+    private static final float BOSS_SPAWN_X = 2365f;
+    private static final float BOSS_SPAWN_Y = 3660f;
+    private static final int BOSS_ORB_DROP_MIN = 20;
+    private static final int BOSS_ORB_DROP_MAX = 35;
 
     private final int lobbyId;
     private final String lobbyName;
@@ -143,6 +148,8 @@ public class Lobby {
         this.nextOrbId = 1;
         int spawned = robotSpawner.spawnInitial(npcManager, collisionGrid, random);
         LOGGER.info(lobbyTag() + "Spawned robots: " + spawned);
+        npcManager.spawnRobotBoss(BOSS_SPAWN_X, BOSS_SPAWN_Y);
+        LOGGER.info(lobbyTag() + "Spawned boss at (" + BOSS_SPAWN_X + ", " + BOSS_SPAWN_Y + ")");
 
         // Initialize refactored components
         this.broadcaster = new LobbyBroadcaster(players);
@@ -447,6 +454,19 @@ public class Lobby {
         broadcaster.broadcastToAll(createCorpseStateUpdate());
     }
 
+    private void addRobotBossCorpse(Npc npc) {
+        Network.CorpseState corpse = new Network.CorpseState();
+        corpse.corpseId = nextCorpseId++;
+        corpse.kind = Network.CorpseState.KIND_ROBOT_BOSS;
+        corpse.x = npc.getPosition().x;
+        corpse.y = npc.getPosition().y;
+        corpse.width = npc.getSize();
+        corpse.height = npc.getSize();
+        corpse.rotationDeg = 90f;
+        corpses.put(corpse.corpseId, corpse);
+        broadcaster.broadcastToAll(createCorpseStateUpdate());
+    }
+
     private void sendLobbySnapshotToNewPlayer(int clientId, Connection connection, LobbyPlayer joiningPlayer) {
         Network.LobbyState lobbyState = new Network.LobbyState();
         for (LobbyPlayer player : players.values()) {
@@ -704,17 +724,34 @@ public class Lobby {
 
     private void onNpcKilledByBullet(Npc npc) {
         LOGGER.info(lobbyTag() + "NPC #" + npc.getId() + " killed!");
-        addRobotButlerCorpse(npc);
-        itemDropManager.spawnOrbsAroundNpc(npc);
+
+        if (npc instanceof RobotBoss) {
+            addRobotBossCorpse(npc);
+            spawnBossOrbsAroundNpc(npc);
+        } else {
+            addRobotButlerCorpse(npc);
+            itemDropManager.spawnOrbsAroundNpc(npc);
+        }
+
         broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
 
-        // Send death sound to all clients for audio playback
         Network.NpcDeathSound deathSound = new Network.NpcDeathSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
         broadcaster.broadcastToAll(deathSound);
     }
 
     private void spawnOrbsAroundNpc(Npc npc) {
         int dropCount = ORB_DROP_MIN + random.nextInt(ORB_DROP_MAX - ORB_DROP_MIN + 1);
+        spawnOrbsAroundPoint(
+            npc.getPosition().x,
+            npc.getPosition().y,
+            dropCount,
+            ORB_DROP_MIN_DISTANCE,
+            ORB_DROP_MAX_DISTANCE
+        );
+    }
+
+    private void spawnBossOrbsAroundNpc(Npc npc) {
+        int dropCount = BOSS_ORB_DROP_MIN + random.nextInt(BOSS_ORB_DROP_MAX - BOSS_ORB_DROP_MIN + 1);
         spawnOrbsAroundPoint(
             npc.getPosition().x,
             npc.getPosition().y,

@@ -30,6 +30,12 @@ public class NpcManager {
         return id;
     }
 
+    public int spawnRobotBoss(float x, float y) {
+        int id = nextNpcId++;
+        npcs.put(id, new RobotBoss(id, x, y));
+        return id;
+    }
+
     public void spawnRobotsOnMap(int count, int mapWidth, int mapHeight) {
         for (int i = 0; i < count; i++) {
             float x = (float) (Math.random() * mapWidth);
@@ -80,6 +86,7 @@ public class NpcManager {
             npc.dispose();
         }
         RobotButler.disposeTextures();
+        RobotBoss.disposeTextures();
     }
 
     public List<Network.NpcState> createStateSnapshot() {
@@ -124,6 +131,9 @@ public class NpcManager {
     }
 
     private Npc createNpcFromState(Network.NpcState state) {
+        if ("RobotBoss".equals(state.type)) {
+            return new RobotBoss(state.npcId, state.x, state.y);
+        }
         if ("RobotButler".equals(state.type)) {
             return new RobotButler(state.npcId, state.x, state.y, 100f);
         }

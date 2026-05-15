@@ -542,6 +542,7 @@ public class Network {
     public static class CorpseState {
         public static final int KIND_PLAYER = 0;
         public static final int KIND_ROBOT_BUTLER = 1;
+        public static final int KIND_ROBOT_BOSS = 2;
 
         public int corpseId;
         public int kind;
