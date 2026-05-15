@@ -23,6 +23,7 @@ import taltech.orbitgame.player.CharacterType;
 import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.ui.KillNotificationManager;
+import taltech.orbitgame.ui.KillCounterHud;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
@@ -56,6 +57,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private final GameStateManager gameState;
     private final NetworkEventHandler networkHandler;
     private final KillNotificationManager killNotifications;
+    private final KillCounterHud killCounterHud;
 
     private boolean isPaused = false;
     private boolean leavingGame = false;
@@ -114,8 +116,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Initialize extracted managers
         this.gameState = new GameStateManager(remotePlayers);
         this.killNotifications = new KillNotificationManager();
+        this.killCounterHud = new KillCounterHud();
         this.networkHandler = new NetworkEventHandler(
-            gameClient, gameState, player, npcManager, inventoryFeature, killNotifications
+            gameClient, gameState, player, npcManager, inventoryFeature, killNotifications, killCounterHud
         );
 
         this.mapLoadStartedAtMs = System.currentTimeMillis();
@@ -195,7 +198,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         gameRenderer.render(delta, gameState.isInLobby(), player, remotePlayers.asMap(), map, npcManager,
                            gameState.getCorpses(), playerController);
 
-        // Render kill notification popup
+        killCounterHud.render(gameRenderer.getBatch(), gameRenderer.getHudFont());
         killNotifications.render(gameRenderer.getBatch());
 
         if (gameState.isInLobby() && extractionPointRenderer != null && extractionUiHud != null && extractionInputController != null) {
@@ -323,6 +326,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             playerDead = false;
             killedByName = null;
+            killCounterHud.reset();
             gameState.setInLobby(true);
         });
     }

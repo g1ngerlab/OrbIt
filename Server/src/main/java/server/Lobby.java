@@ -334,7 +334,7 @@ public class Lobby {
                     Network.NpcHitSound.TYPE_PLAYER_MELEE
                 ));
                 if (npc.isDead()) {
-                    onNpcKilledByBullet(npc);
+                    onNpcKilledByBullet(npc, clientId);
                 }
 
                 System.out.println("[MELEE] damage applied");
@@ -722,7 +722,7 @@ public class Lobby {
         }
     }
 
-    private void onNpcKilledByBullet(Npc npc) {
+    private void onNpcKilledByBullet(Npc npc, int killerClientId) {
         LOGGER.info(lobbyTag() + "NPC #" + npc.getId() + " killed!");
 
         if (npc instanceof RobotBoss) {
@@ -922,8 +922,8 @@ public class Lobby {
         }
 
         @Override
-        public void onNpcKilled(Npc npc) {
-            onNpcKilledByBullet(npc);
+        public void onNpcKilled(Npc npc, int killerClientId) {
+            onNpcKilledByBullet(npc, killerClientId);
         }
     }
 
