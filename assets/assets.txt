@@ -297,6 +297,7 @@ introvideo/intro.ogg
 loot/golden_frog.png
 loot/orb_v1.png
 maps/TalTechMAP.ldtk
+npc/blueboss.png
 npc/fightbutler.png
 npc/robotbutler.png
 npc/runbutler.png

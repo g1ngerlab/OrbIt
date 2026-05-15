@@ -15,6 +15,8 @@ public class CorpseRenderer {
     private final Texture robotTexture;
     private final TextureRegion playerFrame;
     private final TextureRegion robotFrame;
+    private final Texture bossTexture;
+    private final TextureRegion bossFrame;
 
     public CorpseRenderer() {
         this.playerTexture = new Texture(Gdx.files.internal("player/without_run.png"));
@@ -35,6 +37,15 @@ public class CorpseRenderer {
             0,
             Math.max(1, robotTexture.getHeight()),
             robotTexture.getHeight()
+        );
+
+        this.bossTexture = new Texture(Gdx.files.internal("npc/blueboss.png"));
+        this.bossFrame = new TextureRegion(
+            bossTexture,
+            0,
+            4 * 128,
+            128,
+            128
         );
     }
 
@@ -66,6 +77,9 @@ public class CorpseRenderer {
     }
 
     private TextureRegion getTextureForCorpse(int kind) {
+        if (kind == Network.CorpseState.KIND_ROBOT_BOSS) {
+            return bossFrame;
+        }
         if (kind == Network.CorpseState.KIND_ROBOT_BUTLER) {
             return robotFrame;
         }
@@ -75,6 +89,7 @@ public class CorpseRenderer {
     public void dispose() {
         playerTexture.dispose();
         robotTexture.dispose();
+        bossTexture.dispose();
     }
 }
 
