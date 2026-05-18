@@ -381,11 +381,19 @@ public class Network {
      */
     public static class NpcAttack {
         public int npcId;
+        public float targetX;
+        public float targetY;
 
         public NpcAttack() {}
 
         public NpcAttack(int npcId) {
             this.npcId = npcId;
+        }
+
+        public NpcAttack(int npcId, float targetX, float targetY) {
+            this.npcId = npcId;
+            this.targetX = targetX;
+            this.targetY = targetY;
         }
     }
 

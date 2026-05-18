@@ -76,6 +76,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     // Debugging
     private boolean debugCoordsVisible = false;
+    private boolean mapOverlayVisible = false;
 
     // Death/Extraction state
     private String killedByName = null;
@@ -140,6 +141,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             debugCoordsVisible = !debugCoordsVisible;
         }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            mapOverlayVisible = !mapOverlayVisible;
+        }
 
         float scrollY = inputHandler.consumeScrollY();
         if (scrollY != 0f) {
@@ -195,6 +199,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         gameRenderer.setInventoryState(inventoryFeature.getState());
         gameRenderer.setLobbyTimerState(gameState.getLobbyTimerRemainingMs(), gameState.isLobbyFreezePhase());
         gameRenderer.setDebugOverlayVisible(debugCoordsVisible);
+        gameRenderer.setMapOverlayVisible(mapOverlayVisible);
         gameRenderer.render(delta, gameState.isInLobby(), player, remotePlayers.asMap(), map, npcManager,
                            gameState.getCorpses(), playerController);
 
@@ -208,6 +213,8 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             extractionUiHud.setExtractionTimer(extractionInputController.getRemainingTime());
             extractionUiHud.render(gameRenderer.getBatch());
         }
+
+        gameRenderer.renderMapOverlay(map, player);
 
         if (!isPaused && gameState.isInLobby() && playerController != null) {
             playerController.sendInputToServer(gameState.isInLobby());

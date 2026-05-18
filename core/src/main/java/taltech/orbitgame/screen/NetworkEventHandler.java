@@ -85,6 +85,7 @@ public class NetworkEventHandler {
         Gdx.app.postRunnable(() -> {
             int myId = gameClient.getClientId();
             if (entityDied.entityType == Network.EntityDied.TYPE_NPC) {
+                npcManager.onNpcDeath(entityDied.entityId);
                 if (entityDied.killerId == myId && killCounterHud != null) {
                     killCounterHud.onNpcKilled(entityDied.entityId);
                 }
@@ -229,7 +230,7 @@ public class NetworkEventHandler {
     }
 
     public void onNpcAttack(Network.NpcAttack npcAttack) {
-        Gdx.app.postRunnable(() -> npcManager.onNpcAttack(npcAttack.npcId));
+        Gdx.app.postRunnable(() -> npcManager.onNpcAttack(npcAttack.npcId, npcAttack.targetX, npcAttack.targetY));
     }
 
     public void onNpcDeathSound(Network.NpcDeathSound npcDeathSound) {
