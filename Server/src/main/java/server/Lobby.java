@@ -460,9 +460,9 @@ public class Lobby {
         corpse.kind = Network.CorpseState.KIND_ROBOT_BOSS;
         corpse.x = npc.getPosition().x;
         corpse.y = npc.getPosition().y;
-        corpse.width = npc.getSize();
-        corpse.height = npc.getSize();
-        corpse.rotationDeg = 90f;
+        corpse.width = 180f;
+        corpse.height = 180f;
+        corpse.rotationDeg = 0f;
         corpses.put(corpse.corpseId, corpse);
         broadcaster.broadcastToAll(createCorpseStateUpdate());
     }
@@ -678,7 +678,7 @@ public class Lobby {
         LOGGER.info(lobbyTag() + "NPC melee hit player "
             + player.getPlayerName() + "! HP: " + player.getCurrentHealth() + "/" + player.getMaxHealth());
         broadcastPlayerHealth(player);
-        broadcastNpcAttack();
+        broadcastNpcAttack(player.getX() + PLAYER_WIDTH * 0.5f, player.getY() + PLAYER_HEIGHT * 0.5f);
 
         // Send hit sound to all clients for audio playback
         // Find the attacking NPC(s) and get their position
@@ -710,14 +710,14 @@ public class Lobby {
             closeLobby("empty");
         }
         if ("NPC melee".equals(reason)) {
-            broadcastNpcAttack();
+            broadcastNpcAttack(player.getX() + PLAYER_WIDTH * 0.5f, player.getY() + PLAYER_HEIGHT * 0.5f);
         }
     }
 
-    private void broadcastNpcAttack() {
+    private void broadcastNpcAttack(float targetX, float targetY) {
         for (Npc npc : npcManager.getNpcs()) {
             if (npc.isChasing()) {
-                broadcaster.broadcastToAll(new Network.NpcAttack(npc.getId()));
+                broadcaster.broadcastToAll(new Network.NpcAttack(npc.getId(), targetX, targetY));
             }
         }
     }
