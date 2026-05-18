@@ -39,13 +39,15 @@ public class CorpseRenderer {
             robotTexture.getHeight()
         );
 
-        this.bossTexture = new Texture(Gdx.files.internal("npc/blueboss.png"));
+        this.bossTexture = new Texture(Gdx.files.internal("npc/BossN/boss_death.png"));
+        int bossFrameSize = bossTexture.getHeight();
+        int bossFrameCount = Math.max(1, bossTexture.getWidth() / bossFrameSize);
         this.bossFrame = new TextureRegion(
             bossTexture,
+            (bossFrameCount - 1) * bossFrameSize,
             0,
-            4 * 128,
-            128,
-            128
+            bossFrameSize,
+            bossFrameSize
         );
     }
 

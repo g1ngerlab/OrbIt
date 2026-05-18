@@ -126,8 +126,10 @@ public class NpcManager {
             npc.applyHealthState(state.health, state.maxHealth);
         }
 
-        // Remove NPCs that are no longer in the snapshot (dead or removed on server)
-        npcs.keySet().removeIf(id -> !presentIds.contains(id));
+        // Remove NPCs that are no longer in the snapshot, except short-lived client-side death animations.
+        npcs.entrySet().removeIf(entry ->
+            !presentIds.contains(entry.getKey()) && !entry.getValue().shouldKeepRenderingWithoutSnapshot()
+        );
     }
 
     private Npc createNpcFromState(Network.NpcState state) {
@@ -148,6 +150,20 @@ public class NpcManager {
         Npc npc = npcs.get(npcId);
         if (npc != null) {
             npc.onAttack();
+        }
+    }
+
+    public void onNpcAttack(int npcId, float targetX, float targetY) {
+        Npc npc = npcs.get(npcId);
+        if (npc != null) {
+            npc.onAttack(targetX, targetY);
+        }
+    }
+
+    public void onNpcDeath(int npcId) {
+        Npc npc = npcs.get(npcId);
+        if (npc != null) {
+            npc.onDeath();
         }
     }
 }
