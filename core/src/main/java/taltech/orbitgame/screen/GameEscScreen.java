@@ -112,15 +112,6 @@ public class GameEscScreen implements Screen {
             }
         });
 
-        TextButton skipTimerButton = new TextButton("Skip to Freeze Test", buttonStyle);
-        skipTimerButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
-        skipTimerButton.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                gameScreen.skipLobbyTimerToFinalMinuteForTesting();
-            }
-        });
-
         TextButton leaveButton = new TextButton("Leave", buttonStyle);
         leaveButton.getLabel().setFontScale(ESC_BUTTON_FONT_SCALE);
         leaveButton.addListener(new ClickListener() {
@@ -133,7 +124,6 @@ public class GameEscScreen implements Screen {
         table.add(resumeButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(optionsButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(shopButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
-        table.add(skipTimerButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).padBottom(14).row();
         table.add(leaveButton).size(ESC_BUTTON_WIDTH, ESC_BUTTON_HEIGHT).row();
 
         stage.addActor(table);
