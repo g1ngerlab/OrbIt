@@ -48,6 +48,7 @@ public class GameRenderer {
     private final Map<Integer, Texture> worldItemTextures;
     private final InventoryHudRenderer inventoryHudRenderer;
     private final OrthographicCamera hudCamera;
+    private final OrthographicCamera mapOverlayCamera;
     private final CharacterType localCharacterType;
 
     private static final int CROSSHAIR_SCALE = 2;
@@ -69,6 +70,7 @@ public class GameRenderer {
     private final Map<Integer, Float> orbFirstSeenTime = new HashMap<>();
     private InventoryState inventoryState;
     private boolean debugOverlayVisible;
+    private boolean mapOverlayVisible;
     private int lobbyTimerRemainingMs = 10 * 60 * 1000;
     private boolean lobbyFreezePhase;
 
@@ -101,6 +103,7 @@ public class GameRenderer {
         this.inventoryHudRenderer = new InventoryHudRenderer();
         this.hudCamera = new OrthographicCamera();
         this.hudCamera.setToOrtho(false, 800, 600);
+        this.mapOverlayCamera = new OrthographicCamera();
         this.inventoryState = new InventoryState();
     }
 
@@ -255,6 +258,10 @@ public class GameRenderer {
         this.debugOverlayVisible = debugOverlayVisible;
     }
 
+    public void setMapOverlayVisible(boolean mapOverlayVisible) {
+        this.mapOverlayVisible = mapOverlayVisible;
+    }
+
     public void setLobbyTimerState(int remainingMs, boolean freezePhase) {
         this.lobbyTimerRemainingMs = Math.max(0, remainingMs);
         this.lobbyFreezePhase = freezePhase;
@@ -362,6 +369,69 @@ public class GameRenderer {
         batch.end();
     }
 
+    public void renderMapOverlay(MapManager map, Player player) {
+        if (!mapOverlayVisible || map == null || player == null) {
+            return;
+        }
+
+        int screenWidth = Gdx.graphics.getWidth();
+        int screenHeight = Gdx.graphics.getHeight();
+
+        hudCamera.update();
+        shapeRenderer.setProjectionMatrix(hudCamera.combined);
+
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(0f, 0f, 0f, 0.72f);
+        shapeRenderer.rect(0f, 0f, screenWidth, screenHeight);
+        shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+
+        configureMapOverlayCamera(map, screenWidth, screenHeight);
+
+        batch.setProjectionMatrix(mapOverlayCamera.combined);
+        batch.begin();
+        map.render(batch, mapOverlayCamera);
+        batch.end();
+
+        shapeRenderer.setProjectionMatrix(mapOverlayCamera.combined);
+        Gdx.gl.glEnable(GL20.GL_BLEND);
+        Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
+        shapeRenderer.setColor(1f, 0.06f, 0.04f, 1f);
+        float markerRadius = Math.max(22f, Math.min(mapOverlayCamera.viewportWidth, mapOverlayCamera.viewportHeight) * 0.012f);
+        shapeRenderer.circle(player.getCenterX(), player.getCenterY(), markerRadius, 32);
+        shapeRenderer.end();
+        Gdx.gl.glDisable(GL20.GL_BLEND);
+        shapeRenderer.setColor(Color.WHITE);
+
+        batch.setProjectionMatrix(hudCamera.combined);
+        batch.begin();
+        hudFont.draw(batch, "MAP", 24f, screenHeight - 24f);
+        hudFont.draw(batch, "M", screenWidth - 58f, screenHeight - 24f);
+        batch.end();
+    }
+
+    private void configureMapOverlayCamera(MapManager map, int screenWidth, int screenHeight) {
+        float mapWidth = Math.max(1f, map.getWidthPx());
+        float mapHeight = Math.max(1f, map.getHeightPx());
+        float screenAspect = screenHeight == 0 ? 1f : (float) screenWidth / screenHeight;
+        float mapAspect = mapWidth / mapHeight;
+
+        if (screenAspect > mapAspect) {
+            mapOverlayCamera.viewportHeight = mapHeight;
+            mapOverlayCamera.viewportWidth = mapHeight * screenAspect;
+        } else {
+            mapOverlayCamera.viewportWidth = mapWidth;
+            mapOverlayCamera.viewportHeight = mapWidth / screenAspect;
+        }
+
+        mapOverlayCamera.position.set(mapWidth * 0.5f, mapHeight * 0.5f, 0f);
+        mapOverlayCamera.zoom = 1f;
+        mapOverlayCamera.update();
+    }
+
     private void renderHealthBars(Player player, Map<Integer, RemotePlayer> remotePlayers, NpcManager npcManager) {
         shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
 
@@ -464,6 +534,10 @@ public class GameRenderer {
 
     public SpriteBatch getBatch() {
         return batch;
+    }
+
+    public BitmapFont getHudFont() {
+        return hudFont;
     }
 
 }

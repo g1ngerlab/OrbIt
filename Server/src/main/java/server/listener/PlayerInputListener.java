@@ -40,7 +40,8 @@ public class PlayerInputListener implements Listener {
         this.lobbies = new ConcurrentHashMap<>();
         this.clientToLobby = new ConcurrentHashMap<>();
         this.reservedNames = new ConcurrentHashMap<>();
-        this.server = new Server();
+        // Initialize server with larger buffer sizes to handle large game state packets
+        this.server = new Server(8388608, 8388608); // 8MB read/write buffers
         this.npcLoop = Executors.newSingleThreadScheduledExecutor();
         this.lobbyCreationExecutor = Executors.newSingleThreadScheduledExecutor();
         Network.register(server);
@@ -95,69 +96,93 @@ public class PlayerInputListener implements Listener {
 
     @Override
     public void received(Connection connection, Object object) {
-        if (object instanceof Network.CreateLobby) {
-            handleCreateLobby(connection, (Network.CreateLobby) object);
-            return;
-        }
+        try {
 
-        if (object instanceof Network.RequestAllLobbies) {
-            handleRequestAllLobbies(connection);
-            return;
-        }
+            if (object instanceof Network.MeleeRequest) {
+                System.out.println("[SERVER] received melee request");
+                handleMeleeRequest(connection, (Network.MeleeRequest) object);
+                return;
+            }
 
-        if (object instanceof Network.RequestLobbyInfo) {
-            handleRequestLobbyInfo(connection);
-            return;
-        }
+            if (object instanceof Network.CreateLobby) {
+                handleCreateLobby(connection, (Network.CreateLobby) object);
+                return;
+            }
 
-        if (object instanceof Network.CheckPlayerAvailability) {
-            handleCheckPlayerAvailability(connection, (Network.CheckPlayerAvailability) object);
-            return;
-        }
+            if (object instanceof Network.RequestAllLobbies) {
+                handleRequestAllLobbies(connection);
+                return;
+            }
 
-        if (object instanceof Network.Login) {
-            handleLogin(connection, (Network.Login) object);
-            return;
-        }
+            if (object instanceof Network.RequestLobbyInfo) {
+                handleRequestLobbyInfo(connection);
+                return;
+            }
 
-        if (object instanceof Network.JoinLobby) {
-            handleJoinLobby(connection, (Network.JoinLobby) object);
-            return;
-        }
+            if (object instanceof Network.CheckPlayerAvailability) {
+                handleCheckPlayerAvailability(connection, (Network.CheckPlayerAvailability) object);
+                return;
+            }
 
-        if (object instanceof Network.PlayerPositionUpdate) {
-            handlePlayerPositionUpdate(connection, (Network.PlayerPositionUpdate) object);
-            return;
-        }
+            if (object instanceof Network.Login) {
+                handleLogin(connection, (Network.Login) object);
+                return;
+            }
 
-        if (object instanceof Network.ShootRequest) {
-            handleShootRequest(connection, (Network.ShootRequest) object);
-            return;
-        }
+            if (object instanceof Network.JoinLobby) {
+                handleJoinLobby(connection, (Network.JoinLobby) object);
+                return;
+            }
 
-        if (object instanceof Network.DropItemRequest) {
-            handleDropItemRequest(connection, (Network.DropItemRequest) object);
-            return;
-        }
+            if (object instanceof Network.PlayerPositionUpdate) {
+                handlePlayerPositionUpdate(connection, (Network.PlayerPositionUpdate) object);
+                return;
+            }
 
-        if (object instanceof Network.MoveInventoryItemRequest) {
-            handleMoveInventoryItemRequest(connection, (Network.MoveInventoryItemRequest) object);
-            return;
-        }
+            if (object instanceof Network.ShootRequest) {
+                handleShootRequest(connection, (Network.ShootRequest) object);
+                return;
+            }
 
-        if (object instanceof Network.ShopPurchaseRequest) {
-            handleShopPurchaseRequest(connection, (Network.ShopPurchaseRequest) object);
-            return;
-        }
+            if (object instanceof Network.DropItemRequest) {
+                handleDropItemRequest(connection, (Network.DropItemRequest) object);
+                return;
+            }
 
-        if (object instanceof Network.LobbyTimerDebugSkip) {
-            handleLobbyTimerDebugSkip(connection);
-            return;
-        }
+            if (object instanceof Network.MoveInventoryItemRequest) {
+                handleMoveInventoryItemRequest(connection, (Network.MoveInventoryItemRequest) object);
+                return;
+            }
 
-        if (object instanceof Network.InputState) {
-            handleInputState(connection, (Network.InputState) object);
+            if (object instanceof Network.ShopPurchaseRequest) {
+                handleShopPurchaseRequest(connection, (Network.ShopPurchaseRequest) object);
+                return;
+            }
+
+            if (object instanceof Network.LobbyTimerDebugSkip) {
+                handleLobbyTimerDebugSkip(connection);
+                return;
+            }
+
+            if (object instanceof Network.InputState) {
+                handleInputState(connection, (Network.InputState) object);
+            }
+
+        } catch (Exception e) {
+            System.out.println("=== SERVER CRASH ===");
+            e.printStackTrace();
         }
+    }
+
+    private void handleMeleeRequest(Connection connection, Network.MeleeRequest req) {
+        Lobby lobby = getLobbyForConnection(connection);
+        if (lobby == null) return;
+
+        lobby.handleMelee(
+            connection.getID(),
+            req.targetX,
+            req.targetY
+        );
     }
 
     private void handleCreateLobby(Connection connection, Network.CreateLobby createLobby) {

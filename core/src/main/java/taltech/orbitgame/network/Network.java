@@ -13,6 +13,12 @@ public class Network {
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
+
+        // Register collection types FIRST
+        kryo.register(java.util.ArrayList.class);
+        kryo.register(java.util.HashMap.class);
+
+        // Register all packet classes
         kryo.register(Login.class);
         kryo.register(Registration.class);
         kryo.register(LoginError.class);
@@ -26,7 +32,6 @@ public class Network {
         kryo.register(PlayerJoined.class);
         kryo.register(PlayerLeft.class);
         kryo.register(LobbyState.class);
-        kryo.register(java.util.ArrayList.class);
         kryo.register(PlayerInfo.class);
         kryo.register(LobbyJoinConfirmed.class);
         kryo.register(LobbyTimerState.class);
@@ -34,7 +39,6 @@ public class Network {
         kryo.register(LobbyTimerDebugSkip.class);
         kryo.register(RequestLobbyInfo.class);
         kryo.register(LobbyInfo.class);
-        kryo.register(java.util.HashMap.class);
         kryo.register(NpcState.class);
         kryo.register(NpcStateUpdate.class);
         kryo.register(NpcAttack.class);
@@ -67,6 +71,8 @@ public class Network {
         kryo.register(ExtractionPointStateUpdate.class);
         kryo.register(ExtractionPointsData.class);
         kryo.register(ExtractionPointData.class);
+        kryo.register(MeleeRequest.class);
+        kryo.register(PlayerMelee.class);
     }
 
     public static class Login {
@@ -379,11 +385,19 @@ public class Network {
      */
     public static class NpcAttack {
         public int npcId;
+        public float targetX;
+        public float targetY;
 
         public NpcAttack() {}
 
         public NpcAttack(int npcId) {
             this.npcId = npcId;
+        }
+
+        public NpcAttack(int npcId, float targetX, float targetY) {
+            this.npcId = npcId;
+            this.targetX = targetX;
+            this.targetY = targetY;
         }
     }
 
@@ -394,6 +408,18 @@ public class Network {
         public ShootRequest() {}
 
         public ShootRequest(float targetX, float targetY) {
+            this.targetX = targetX;
+            this.targetY = targetY;
+        }
+    }
+
+    public static class MeleeRequest {
+        public float targetX;
+        public float targetY;
+
+        public MeleeRequest() {}
+
+        public MeleeRequest(float targetX, float targetY) {
             this.targetX = targetX;
             this.targetY = targetY;
         }
@@ -416,6 +442,26 @@ public class Network {
             this.playerName = playerName;
             this.shooterX = shooterX;
             this.shooterY = shooterY;
+        }
+    }
+
+    /**
+     * Sent by the server to all clients when a player attacks without a weapon.
+     * Used to show the punch animation on other clients.
+     */
+    public static class PlayerMelee {
+        public int clientId;
+        public String playerName;
+        public float attackerX;
+        public float attackerY;
+
+        public PlayerMelee() {}
+
+        public PlayerMelee(int clientId, String playerName, float attackerX, float attackerY) {
+            this.clientId = clientId;
+            this.playerName = playerName;
+            this.attackerX = attackerX;
+            this.attackerY = attackerY;
         }
     }
 
@@ -462,16 +508,25 @@ public class Network {
      * Used to play impact sound effects on the client side.
      */
     public static class NpcHitSound {
+        public static final int TYPE_NPC_MELEE = 0;
+        public static final int TYPE_PLAYER_MELEE = 1;
+
         public int npcId;
         public float npcX;
         public float npcY;
+        public int soundType = TYPE_NPC_MELEE;
 
         public NpcHitSound() {}
 
         public NpcHitSound(int npcId, float npcX, float npcY) {
+            this(npcId, npcX, npcY, TYPE_NPC_MELEE);
+        }
+
+        public NpcHitSound(int npcId, float npcX, float npcY, int soundType) {
             this.npcId = npcId;
             this.npcX = npcX;
             this.npcY = npcY;
+            this.soundType = soundType;
         }
     }
 
@@ -499,6 +554,7 @@ public class Network {
     public static class CorpseState {
         public static final int KIND_PLAYER = 0;
         public static final int KIND_ROBOT_BUTLER = 1;
+        public static final int KIND_ROBOT_BOSS = 2;
 
         public int corpseId;
         public int kind;
