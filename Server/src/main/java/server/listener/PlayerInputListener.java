@@ -40,7 +40,8 @@ public class PlayerInputListener implements Listener {
         this.lobbies = new ConcurrentHashMap<>();
         this.clientToLobby = new ConcurrentHashMap<>();
         this.reservedNames = new ConcurrentHashMap<>();
-        this.server = new Server();
+        // Initialize server with larger buffer sizes to handle large game state packets
+        this.server = new Server(8388608, 8388608); // 8MB read/write buffers
         this.npcLoop = Executors.newSingleThreadScheduledExecutor();
         this.lobbyCreationExecutor = Executors.newSingleThreadScheduledExecutor();
         Network.register(server);
