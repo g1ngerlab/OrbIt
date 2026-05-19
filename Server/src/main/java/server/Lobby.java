@@ -733,7 +733,7 @@ public class Lobby {
             itemDropManager.spawnOrbsAroundNpc(npc);
         }
 
-        broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId()));
+        broadcaster.broadcastToAll(new Network.EntityDied(Network.EntityDied.TYPE_NPC, npc.getId(), killerClientId));
 
         Network.NpcDeathSound deathSound = new Network.NpcDeathSound(npc.getId(), npc.getPosition().x, npc.getPosition().y);
         broadcaster.broadcastToAll(deathSound);

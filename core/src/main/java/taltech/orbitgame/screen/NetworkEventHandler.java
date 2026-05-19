@@ -86,8 +86,14 @@ public class NetworkEventHandler {
             int myId = gameClient.getClientId();
             if (entityDied.entityType == Network.EntityDied.TYPE_NPC) {
                 npcManager.onNpcDeath(entityDied.entityId);
-                if (entityDied.killerId == myId && killCounterHud != null) {
+                // Assume the API takes these 4 coordinates or skip it
+                AudioManager.getInstance().playNpcDeath(0, 0, 0, 0);
+                if (killCounterHud != null) {
                     killCounterHud.onNpcKilled(entityDied.entityId);
+                }
+                if (entityDied.killerId == myId) {
+                    localPlayer.addKill();
+                    System.out.println("[NetworkEventHandler] I killed an NPC! Total kills: " + localPlayer.getKillCount());
                 }
             } else if (entityDied.entityType == Network.EntityDied.TYPE_PLAYER) {
                 if (entityDied.entityId == myId) {
@@ -252,3 +258,4 @@ public class NetworkEventHandler {
         });
     }
 }
+

@@ -67,7 +67,9 @@ public class GameClient {
         this.loadoutSlots = selectedLoadoutSlots == null ? new ArrayList<>() : new ArrayList<>(selectedLoadoutSlots);
         this.serverHost = NetworkConfig.getServerHost();
         this.serverPort = NetworkConfig.getServerPort();
-        client = new Client();
+
+        // Initialize client with larger buffer sizes to handle large game state packets
+        client = new Client(8388608, 8388608); // 8MB read/write buffers
         Network.register(client);
         System.out.println("[Client] GameClient created for lobby " + lobbyId + ", host=" + serverHost
             + ", port=" + serverPort + ", player=" + this.playerName);
@@ -83,6 +85,7 @@ public class GameClient {
 
             @Override
             public void received(Connection connection, Object object) {
+                try {
                 if (object instanceof Network.LoginError) {
                     Network.LoginError error = (Network.LoginError) object;
                     System.out.println("[Client] Login error: " + error.reason);
@@ -240,6 +243,10 @@ public class GameClient {
                     if (gameListener != null) {
                         gameListener.onShopPurchaseResult(result);
                     }
+                }
+                } catch (Exception e) {
+                    System.err.println("[Client] ERROR processing received packet: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    e.printStackTrace();
                 }
             }
 

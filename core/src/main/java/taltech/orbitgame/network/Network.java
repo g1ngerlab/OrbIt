@@ -13,6 +13,12 @@ public class Network {
 
     public static void register(EndPoint endPoint) {
         Kryo kryo = endPoint.getKryo();
+
+        // Register collection types FIRST
+        kryo.register(java.util.ArrayList.class);
+        kryo.register(java.util.HashMap.class);
+
+        // Register all packet classes
         kryo.register(Login.class);
         kryo.register(Registration.class);
         kryo.register(LoginError.class);
@@ -26,7 +32,6 @@ public class Network {
         kryo.register(PlayerJoined.class);
         kryo.register(PlayerLeft.class);
         kryo.register(LobbyState.class);
-        kryo.register(java.util.ArrayList.class);
         kryo.register(PlayerInfo.class);
         kryo.register(LobbyJoinConfirmed.class);
         kryo.register(LobbyTimerState.class);
@@ -34,7 +39,6 @@ public class Network {
         kryo.register(LobbyTimerDebugSkip.class);
         kryo.register(RequestLobbyInfo.class);
         kryo.register(LobbyInfo.class);
-        kryo.register(java.util.HashMap.class);
         kryo.register(NpcState.class);
         kryo.register(NpcStateUpdate.class);
         kryo.register(NpcAttack.class);
