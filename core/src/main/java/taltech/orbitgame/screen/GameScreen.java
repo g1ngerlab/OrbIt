@@ -23,6 +23,7 @@ import taltech.orbitgame.player.CharacterType;
 import taltech.orbitgame.rendering.GameRenderer;
 import taltech.orbitgame.Main;
 import taltech.orbitgame.ui.KillNotificationManager;
+import taltech.orbitgame.ui.KillCounterHud;
 import taltech.orbitgame.world.MapManager;
 import taltech.orbitgame.world.Player;
 import taltech.orbitgame.world.RemotePlayer;
@@ -56,6 +57,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
     private final GameStateManager gameState;
     private final NetworkEventHandler networkHandler;
     private final KillNotificationManager killNotifications;
+    private final KillCounterHud killCounterHud;
 
     private boolean isPaused = false;
     private boolean leavingGame = false;
@@ -74,6 +76,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     // Debugging
     private boolean debugCoordsVisible = false;
+    private boolean mapOverlayVisible = false;
 
     // Death/Extraction state
     private String killedByName = null;
@@ -114,8 +117,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         // Initialize extracted managers
         this.gameState = new GameStateManager(remotePlayers);
         this.killNotifications = new KillNotificationManager();
+        this.killCounterHud = new KillCounterHud();
         this.networkHandler = new NetworkEventHandler(
-            gameClient, gameState, player, npcManager, inventoryFeature, killNotifications
+            gameClient, gameState, player, npcManager, inventoryFeature, killNotifications, killCounterHud
         );
 
         this.mapLoadStartedAtMs = System.currentTimeMillis();
@@ -136,6 +140,9 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
         if (Gdx.input.isKeyJustPressed(Input.Keys.F3)) {
             debugCoordsVisible = !debugCoordsVisible;
+        }
+        if (Gdx.input.isKeyJustPressed(Input.Keys.M)) {
+            mapOverlayVisible = !mapOverlayVisible;
         }
 
         float scrollY = inputHandler.consumeScrollY();
@@ -192,10 +199,11 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
         gameRenderer.setInventoryState(inventoryFeature.getState());
         gameRenderer.setLobbyTimerState(gameState.getLobbyTimerRemainingMs(), gameState.isLobbyFreezePhase());
         gameRenderer.setDebugOverlayVisible(debugCoordsVisible);
+        gameRenderer.setMapOverlayVisible(mapOverlayVisible);
         gameRenderer.render(delta, gameState.isInLobby(), player, remotePlayers.asMap(), map, npcManager,
                            gameState.getCorpses(), playerController);
 
-        // Render kill notification popup
+        killCounterHud.render(gameRenderer.getBatch(), gameRenderer.getHudFont());
         killNotifications.render(gameRenderer.getBatch());
 
         if (gameState.isInLobby() && extractionPointRenderer != null && extractionUiHud != null && extractionInputController != null) {
@@ -205,6 +213,8 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             extractionUiHud.setExtractionTimer(extractionInputController.getRemainingTime());
             extractionUiHud.render(gameRenderer.getBatch());
         }
+
+        gameRenderer.renderMapOverlay(map, player);
 
         if (!isPaused && gameState.isInLobby() && playerController != null) {
             playerController.sendInputToServer(gameState.isInLobby());
@@ -323,6 +333,7 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
             }
             playerDead = false;
             killedByName = null;
+            killCounterHud.reset();
             gameState.setInLobby(true);
         });
     }
@@ -380,6 +391,10 @@ public class GameScreen implements Screen, GameClient.GameClientListener {
 
     @Override public void onPlayerShoot(Network.PlayerShoot playerShoot) {
         networkHandler.onPlayerShoot(playerShoot);
+    }
+
+    @Override public void onPlayerMelee(Network.PlayerMelee playerMelee) {
+        networkHandler.onPlayerMelee(playerMelee);
     }
 
     @Override public void onPlayerStep(Network.PlayerStep playerStep) {

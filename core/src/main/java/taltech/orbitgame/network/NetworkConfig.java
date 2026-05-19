@@ -16,8 +16,6 @@ public final class NetworkConfig {
     //private static final String DEFAULT_HOST = "localhost";
     //private static final int DEFAULT_PORT = 54555;
 
-    // ============================================
-
     private NetworkConfig() {
     }
 

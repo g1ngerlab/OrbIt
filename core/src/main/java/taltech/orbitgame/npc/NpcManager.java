@@ -30,6 +30,12 @@ public class NpcManager {
         return id;
     }
 
+    public int spawnRobotBoss(float x, float y) {
+        int id = nextNpcId++;
+        npcs.put(id, new RobotBoss(id, x, y));
+        return id;
+    }
+
     public void spawnRobotsOnMap(int count, int mapWidth, int mapHeight) {
         for (int i = 0; i < count; i++) {
             float x = (float) (Math.random() * mapWidth);
@@ -80,6 +86,7 @@ public class NpcManager {
             npc.dispose();
         }
         RobotButler.disposeTextures();
+        RobotBoss.disposeTextures();
     }
 
     public List<Network.NpcState> createStateSnapshot() {
@@ -119,11 +126,16 @@ public class NpcManager {
             npc.applyHealthState(state.health, state.maxHealth);
         }
 
-        // Remove NPCs that are no longer in the snapshot (dead or removed on server)
-        npcs.keySet().removeIf(id -> !presentIds.contains(id));
+        // Remove NPCs that are no longer in the snapshot, except short-lived client-side death animations.
+        npcs.entrySet().removeIf(entry ->
+            !presentIds.contains(entry.getKey()) && !entry.getValue().shouldKeepRenderingWithoutSnapshot()
+        );
     }
 
     private Npc createNpcFromState(Network.NpcState state) {
+        if ("RobotBoss".equals(state.type)) {
+            return new RobotBoss(state.npcId, state.x, state.y);
+        }
         if ("RobotButler".equals(state.type)) {
             return new RobotButler(state.npcId, state.x, state.y, 100f);
         }
@@ -138,6 +150,20 @@ public class NpcManager {
         Npc npc = npcs.get(npcId);
         if (npc != null) {
             npc.onAttack();
+        }
+    }
+
+    public void onNpcAttack(int npcId, float targetX, float targetY) {
+        Npc npc = npcs.get(npcId);
+        if (npc != null) {
+            npc.onAttack(targetX, targetY);
+        }
+    }
+
+    public void onNpcDeath(int npcId) {
+        Npc npc = npcs.get(npcId);
+        if (npc != null) {
+            npc.onDeath();
         }
     }
 }

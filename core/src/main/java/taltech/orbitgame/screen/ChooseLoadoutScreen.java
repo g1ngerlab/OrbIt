@@ -473,8 +473,16 @@ public class ChooseLoadoutScreen implements Screen {
         }
         startingMatch = true;
         loadoutSelection.ensureStarterWeapon();
-        statusLabel.setText("Starting match...");
+        statusLabel.setText("Playing intro...");
+        AudioManager.getInstance().stopCurrentMusic();
+        ((Main) game).playIntroVideoThen(this::startMatchAfterIntro);
+    }
 
+    private void startMatchAfterIntro() {
+        if (disposed) {
+            return;
+        }
+        statusLabel.setText("Starting match...");
         try {
             GameClient gameClient = new GameClient(lobbyId, AuthState.getCurrentUsername(), loadoutSelection.toNetworkSlots());
             game.setScreen(new GameScreen((Main) game, gameClient, lobbyInfoClient));

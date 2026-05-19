@@ -54,7 +54,8 @@ public class LobbyInfoClient {
 
     public LobbyInfoClient() {
         lobbyPlayerCounts = new HashMap<>();
-        client = new Client();
+        // Initialize client with larger buffer sizes to handle large packets
+        client = new Client(8388608, 8388608); // 8MB read/write buffers
         serverHost = NetworkConfig.getServerHost();
         serverPort = NetworkConfig.getServerPort();
         Network.register(client);

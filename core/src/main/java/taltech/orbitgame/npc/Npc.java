@@ -39,6 +39,18 @@ public abstract class Npc {
         // Override in subclasses if needed
     }
 
+    public void onAttack(float targetX, float targetY) {
+        onAttack();
+    }
+
+    public void onDeath() {
+        // Override in subclasses if needed
+    }
+
+    public boolean shouldKeepRenderingWithoutSnapshot() {
+        return false;
+    }
+
     public int getId() {
         return id;
     }
