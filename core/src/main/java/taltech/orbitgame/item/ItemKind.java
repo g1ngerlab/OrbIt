@@ -7,7 +7,18 @@ public enum ItemKind {
     NONE(0, "none"),
     ORB(1, "orb"),
     STARTER_SHOTGUN(2, "starter_shotgun"),
-    GOLDEN_FROG(3, "golden_frog");
+    GOLDEN_FROG(3, "golden_frog"),
+    WL(4, "wl"),
+    DL(5, "dl"),
+    BGL(6, "bgl"),
+    VBUCK(7, "vbuck"),
+    KANES(8, "kanes"),
+    PAPAGOI(9, "papagoi"),
+    HAZBIK(10, "hazbik"),
+    SHREX(11, "shrex"),
+    BADABUM(12, "badabum"),
+    STICKERS(13, "stickers"),
+    KOHUKE(14, "kohuke");
 
     private final int id;
     private final String code;

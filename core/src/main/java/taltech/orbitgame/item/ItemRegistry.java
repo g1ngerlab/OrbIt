@@ -15,6 +15,17 @@ public final class ItemRegistry {
         register(new OrbItemDefinition());
         register(new taltech.orbitgame.item.StarterShotgunItemDefinition());
         register(new GoldenFrogItemDefinition());
+        register(new CollectibleItemDefinition(ItemKind.WL, "WL", "loot/wl10.png"));
+        register(new CollectibleItemDefinition(ItemKind.DL, "DL", "loot/dl100.png"));
+        register(new CollectibleItemDefinition(ItemKind.BGL, "BGL", "loot/bgl1000.png"));
+        register(new CollectibleItemDefinition(ItemKind.VBUCK, "VBuck", "loot/vbuck322.png"));
+        register(new CollectibleItemDefinition(ItemKind.KANES, "Kanes", "loot/kanes333.png"));
+        register(new CollectibleItemDefinition(ItemKind.PAPAGOI, "Papagoi", "loot/papagoi399.png"));
+        register(new CollectibleItemDefinition(ItemKind.HAZBIK, "Hazbik", "loot/hazbik777.png"));
+        register(new CollectibleItemDefinition(ItemKind.SHREX, "Shrex", "loot/shrex400.png"));
+        register(new CollectibleItemDefinition(ItemKind.BADABUM, "Badabum", "loot/badabum500.png"));
+        register(new CollectibleItemDefinition(ItemKind.STICKERS, "Stickers", "loot/stickers2014.png"));
+        register(new CollectibleItemDefinition(ItemKind.KOHUKE, "Kohuke", "loot/kohuke10000.png"));
     }
 
     private ItemRegistry() {
