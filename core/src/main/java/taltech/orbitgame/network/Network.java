@@ -700,6 +700,17 @@ public class Network {
         public static final int ORB = ItemKind.ORB.getId();
         public static final int STARTER_SHOTGUN = ItemKind.STARTER_SHOTGUN.getId();
         public static final int GOLDEN_FROG = ItemKind.GOLDEN_FROG.getId();
+        public static final int WL = ItemKind.WL.getId();
+        public static final int DL = ItemKind.DL.getId();
+        public static final int BGL = ItemKind.BGL.getId();
+        public static final int VBUCK = ItemKind.VBUCK.getId();
+        public static final int KANES = ItemKind.KANES.getId();
+        public static final int PAPAGOI = ItemKind.PAPAGOI.getId();
+        public static final int HAZBIK = ItemKind.HAZBIK.getId();
+        public static final int SHREX = ItemKind.SHREX.getId();
+        public static final int BADABUM = ItemKind.BADABUM.getId();
+        public static final int STICKERS = ItemKind.STICKERS.getId();
+        public static final int KOHUKE = ItemKind.KOHUKE.getId();
 
         private ItemType() {
         }
